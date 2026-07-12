@@ -125,6 +125,8 @@
     playStartedAt: 0,
     playFromBeat: 0,
     playAnimationFrame: 0,
+    playbackMode: "midi",
+    playbackLengthBeats: 8,
     audioContext: null,
     activeAudioNodes: [],
     drag: null,
@@ -189,7 +191,7 @@
       state.metronomeEnabled = !state.metronomeEnabled;
       renderMetronomeControl();
       if (state.isPlaying) {
-        if (!state.metronomeEnabled && state.notes.length === 0) stopPlayback();
+        if (!state.metronomeEnabled && !hasPlayableContent()) stopPlayback();
         else restartPlaybackAtCurrentPosition();
       }
     });
@@ -204,7 +206,12 @@
 
     document.querySelectorAll("[data-progression-bars]").forEach((button) => {
       button.addEventListener("click", () => {
-        state.progressionBars = Number(button.dataset.progressionBars);
+        const nextBars = Number(button.dataset.progressionBars);
+        if (nextBars === state.progressionBars) return;
+        stopPlayback();
+        const previousBars = state.progressionBars;
+        state.progressionBars = nextBars;
+        scaleProgressionDraftDurations(previousBars, nextBars);
         renderProgressionDraft();
       });
     });
@@ -250,6 +257,7 @@
     });
 
     elements.keySelect.addEventListener("change", () => {
+      stopPlayback();
       state.keyPc = Number(elements.keySelect.value);
       syncProgressionDraftToTheory();
       renderTheory();
@@ -259,6 +267,7 @@
     });
 
     elements.scaleSelect.addEventListener("change", () => {
+      stopPlayback();
       state.scaleId = elements.scaleSelect.value;
       syncProgressionDraftToTheory();
       renderTheory();
@@ -273,6 +282,7 @@
     });
 
     elements.voicingSelect.addEventListener("change", () => {
+      stopPlayback();
       state.voicing = elements.voicingSelect.value;
       renderChordPalette();
       renderProgressionBuilder();
@@ -465,26 +475,109 @@
   }
 
   function selectProgressionChord(chord) {
+    stopPlayback();
     const existingIndex = state.progressionDraft.findIndex((item) => item.degree === chord.degree);
     const existingChord = existingIndex >= 0 ? state.progressionDraft[existingIndex] : null;
     const isSameSelection = Boolean(existingChord) && existingChord.typeId === chord.typeId;
 
     if (isSameSelection) {
       state.progressionDraft.splice(existingIndex, 1);
+      normalizeProgressionDraftDurations();
     } else {
       const nextChord = {
         ...chord,
         pitchClasses: [...chord.pitchClasses],
         noteNames: [...chord.noteNames],
-        draftId: existingChord?.draftId || `draft-${state.nextDraftId++}`
+        draftId: existingChord?.draftId || `draft-${state.nextDraftId++}`,
+        durationBars: existingChord?.durationBars || getNewProgressionChordDuration()
       };
-      if (existingIndex >= 0) state.progressionDraft.splice(existingIndex, 1, nextChord);
-      else state.progressionDraft.push(nextChord);
+      if (existingIndex >= 0) {
+        state.progressionDraft.splice(existingIndex, 1, nextChord);
+      } else {
+        makeRoomForNewProgressionChord(nextChord.durationBars);
+        state.progressionDraft.push(nextChord);
+      }
       auditionNotes(getChordPitches(chord), 0.65);
     }
 
     pruneProgressionDraftToRootSelection();
+    normalizeProgressionDraftDurations();
     renderProgressionBuilder();
+  }
+
+  function getProgressionMinimumDuration() {
+    if (state.progressionDraft.length === 0) return 0.25;
+    return Math.min(0.25, state.progressionBars / state.progressionDraft.length);
+  }
+
+  function getProgressionDurationTotal() {
+    return state.progressionDraft.reduce((total, chord) => total + (Number(chord.durationBars) || 0), 0);
+  }
+
+  function getNewProgressionChordDuration() {
+    return state.progressionBars / (state.progressionDraft.length + 1);
+  }
+
+  function makeRoomForNewProgressionChord(newDuration) {
+    if (state.progressionDraft.length === 0) return;
+    normalizeProgressionDraftDurations();
+    const currentTotal = getProgressionDurationTotal();
+    const remaining = Math.max(0, state.progressionBars - newDuration);
+    const scale = currentTotal > 0 ? remaining / currentTotal : 1;
+    state.progressionDraft.forEach((chord) => {
+      chord.durationBars *= scale;
+    });
+  }
+
+  function normalizeProgressionDraftDurations(options = {}) {
+    const { forceEqual = false } = options;
+    const count = state.progressionDraft.length;
+    if (count === 0) return;
+
+    const minimum = Math.min(0.25, state.progressionBars / count);
+    const values = state.progressionDraft.map((chord) => Number(chord.durationBars));
+    const hasInvalidValue = values.some((value) => !Number.isFinite(value) || value <= 0);
+
+    if (forceEqual || hasInvalidValue) {
+      const equalDuration = state.progressionBars / count;
+      state.progressionDraft.forEach((chord) => { chord.durationBars = equalDuration; });
+      return;
+    }
+
+    let total = values.reduce((sum, value) => sum + value, 0);
+    if (total <= 0) {
+      const equalDuration = state.progressionBars / count;
+      state.progressionDraft.forEach((chord) => { chord.durationBars = equalDuration; });
+      return;
+    }
+
+    let normalized = values.map((value) => value * (state.progressionBars / total));
+    const belowMinimum = normalized.some((value) => value < minimum);
+    if (belowMinimum) {
+      const fixed = normalized.map((value) => value < minimum);
+      const fixedTotal = fixed.filter(Boolean).length * minimum;
+      const flexibleTotal = normalized.reduce((sum, value, index) => sum + (fixed[index] ? 0 : value), 0);
+      const available = Math.max(0, state.progressionBars - fixedTotal);
+      normalized = normalized.map((value, index) => {
+        if (fixed[index]) return minimum;
+        return flexibleTotal > 0 ? value * (available / flexibleTotal) : available / Math.max(1, count - fixed.filter(Boolean).length);
+      });
+    }
+
+    total = normalized.reduce((sum, value) => sum + value, 0);
+    normalized[normalized.length - 1] += state.progressionBars - total;
+    state.progressionDraft.forEach((chord, index) => {
+      chord.durationBars = Math.max(minimum, normalized[index]);
+    });
+  }
+
+  function scaleProgressionDraftDurations(previousBars, nextBars) {
+    if (state.progressionDraft.length === 0) return;
+    const ratio = previousBars > 0 ? nextBars / previousBars : 1;
+    state.progressionDraft.forEach((chord) => {
+      chord.durationBars = (Number(chord.durationBars) || 0) * ratio;
+    });
+    normalizeProgressionDraftDurations();
   }
 
   function getRootProgressionSelection() {
@@ -505,9 +598,11 @@
   function pruneProgressionDraftToRootSelection() {
     const rootSelection = getRootProgressionSelection();
     if (!rootSelection) return;
+    const previousLength = state.progressionDraft.length;
     state.progressionDraft = state.progressionDraft.filter((chord) =>
       chord.degree === 0 || isProgressionChordCompatible(chord, rootSelection)
     );
+    if (state.progressionDraft.length !== previousLength) normalizeProgressionDraftDurations();
   }
 
   function syncProgressionDraftToTheory() {
@@ -520,10 +615,12 @@
       const rootPc = (state.keyPc + interval) % 12;
       return [{
         ...buildProgressionChord(rootPc, selectedChord.degree, type, diatonicChords[selectedChord.degree] || null),
-        draftId: selectedChord.draftId
+        draftId: selectedChord.draftId,
+        durationBars: selectedChord.durationBars
       }];
     });
     pruneProgressionDraftToRootSelection();
+    normalizeProgressionDraftDurations();
   }
 
   function renderProgressionDraft() {
@@ -555,66 +652,190 @@
   }
 
   function renderProgressionViewerTimeline() {
+    normalizeProgressionDraftDurations();
     const barCells = Array.from({ length: state.progressionBars }, (_, index) =>
       `<span class="progression-viewer-bar"><small>${index + 1}</small></span>`
     ).join("");
+    const progressionPlayhead = '<div class="progression-viewer-playhead" id="progressionViewerPlayhead" aria-hidden="true"></div>';
 
     if (state.progressionDraft.length === 0) {
       elements.progressionViewerTimeline.innerHTML = `
         <div class="progression-viewer-bars" style="--viewer-bars: ${state.progressionBars}">${barCells}</div>
         <div class="progression-viewer-empty">YOUR CHOSEN CHORDS WILL APPEAR HERE</div>
+        ${progressionPlayhead}
       `;
       return;
     }
 
-    const blockWidth = 100 / state.progressionDraft.length;
+    let elapsedBars = 0;
     const blocks = state.progressionDraft.map((chord, index) => {
-      const left = index * blockWidth;
+      const durationBars = Number(chord.durationBars) || 0;
+      const left = (elapsedBars / state.progressionBars) * 100;
+      const width = (durationBars / state.progressionBars) * 100;
+      elapsedBars += durationBars;
       const colorIndex = chord.degree % PROGRESSION_VIEWER_COLORS.length;
+      const canResize = index < state.progressionDraft.length - 1;
       return `
-        <button class="progression-viewer-block" type="button" data-draft-id="${escapeHtml(chord.draftId)}"
-          style="left:${left}%;width:${blockWidth}%;--progression-block-color:${PROGRESSION_VIEWER_COLORS[colorIndex]}"
-          title="Remove ${escapeHtml(chord.name)} from the chosen progression">
+        <div class="progression-viewer-block" data-draft-id="${escapeHtml(chord.draftId)}"
+          style="left:${left}%;width:${width}%;--progression-block-color:${PROGRESSION_VIEWER_COLORS[colorIndex]}"
+          title="${escapeHtml(chord.name)} · ${escapeHtml(formatProgressionDuration(durationBars))}">
           <small>${String(index + 1).padStart(2, "0")}</small>
           <strong>${escapeHtml(chord.name)}</strong>
-          <span>${escapeHtml(chord.roman)}</span>
-          <i aria-hidden="true">×</i>
-        </button>
+          <span>${escapeHtml(chord.roman)} · ${escapeHtml(formatProgressionDuration(durationBars))}</span>
+          <button class="progression-viewer-remove" type="button" data-remove-draft-id="${escapeHtml(chord.draftId)}" aria-label="Remove ${escapeHtml(chord.name)} from the progression" title="Remove ${escapeHtml(chord.name)}">×</button>
+          ${canResize ? `<button class="progression-viewer-resize" type="button" data-boundary-index="${index}" aria-label="Resize ${escapeHtml(chord.name)} and the next chord" title="Drag to adjust chord duration. Arrow keys adjust by a quarter bar."><span></span></button>` : ""}
+        </div>
       `;
     }).join("");
 
     elements.progressionViewerTimeline.innerHTML = `
       <div class="progression-viewer-bars" style="--viewer-bars: ${state.progressionBars}">${barCells}</div>
       <div class="progression-viewer-blocks">${blocks}</div>
+      ${progressionPlayhead}
     `;
 
-    elements.progressionViewerTimeline.querySelectorAll("[data-draft-id]").forEach((button) => {
-      button.addEventListener("click", () => removeProgressionDraftChord(button.dataset.draftId));
+    elements.progressionViewerTimeline.querySelectorAll("[data-remove-draft-id]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeProgressionDraftChord(button.dataset.removeDraftId);
+      });
+    });
+
+    elements.progressionViewerTimeline.querySelectorAll("[data-boundary-index]").forEach((handle) => {
+      handle.addEventListener("pointerdown", (event) => beginProgressionBlockResize(event, Number(handle.dataset.boundaryIndex)));
+      handle.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        adjustProgressionBoundary(Number(handle.dataset.boundaryIndex), event.key === "ArrowRight" ? 0.25 : -0.25);
+      });
     });
   }
 
+  function formatProgressionDuration(durationBars) {
+    const rounded = Math.round(durationBars * 4) / 4;
+    return `${formatNumber(rounded)} ${Math.abs(rounded - 1) < 0.001 ? "BAR" : "BARS"}`;
+  }
+
+  function beginProgressionBlockResize(event, boundaryIndex) {
+    if (boundaryIndex < 0 || boundaryIndex >= state.progressionDraft.length - 1) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stopPlayback();
+
+    const blocksLayer = elements.progressionViewerTimeline.querySelector(".progression-viewer-blocks");
+    const bounds = blocksLayer?.getBoundingClientRect();
+    if (!bounds || bounds.width <= 0) return;
+
+    const current = state.progressionDraft[boundaryIndex];
+    const next = state.progressionDraft[boundaryIndex + 1];
+    const initialCurrent = current.durationBars;
+    const initialNext = next.durationBars;
+    const pairTotal = initialCurrent + initialNext;
+    const minimum = getProgressionMinimumDuration();
+    const startX = event.clientX;
+    const beforeResize = snapshotEditorState();
+    let changed = false;
+
+    const onPointerMove = (moveEvent) => {
+      const deltaBars = ((moveEvent.clientX - startX) / bounds.width) * state.progressionBars;
+      const nextCurrent = clamp(
+        Math.round((initialCurrent + deltaBars) * 4) / 4,
+        minimum,
+        pairTotal - minimum
+      );
+      if (Math.abs(nextCurrent - current.durationBars) < 0.0001) return;
+      current.durationBars = nextCurrent;
+      next.durationBars = pairTotal - nextCurrent;
+      changed = true;
+      renderProgressionViewerTimeline();
+    };
+
+    const onPointerUp = () => {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      if (changed) {
+        pushUndoState(beforeResize);
+        renderProgressionDraft();
+      }
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp, { once: true });
+  }
+
+  function adjustProgressionBoundary(boundaryIndex, deltaBars) {
+    if (boundaryIndex < 0 || boundaryIndex >= state.progressionDraft.length - 1) return;
+    stopPlayback();
+    const current = state.progressionDraft[boundaryIndex];
+    const next = state.progressionDraft[boundaryIndex + 1];
+    const pairTotal = current.durationBars + next.durationBars;
+    const minimum = getProgressionMinimumDuration();
+    const nextCurrent = clamp(
+      Math.round((current.durationBars + deltaBars) * 4) / 4,
+      minimum,
+      pairTotal - minimum
+    );
+    if (Math.abs(nextCurrent - current.durationBars) < 0.0001) return;
+    pushUndoState();
+    current.durationBars = nextCurrent;
+    next.durationBars = pairTotal - nextCurrent;
+    renderProgressionDraft();
+  }
+
   function removeProgressionDraftChord(draftId) {
+    stopPlayback();
     state.progressionDraft = state.progressionDraft.filter((chord) => chord.draftId !== draftId);
+    normalizeProgressionDraftDurations();
     renderProgressionBuilder();
   }
 
   function clearProgressionDraft() {
+    stopPlayback();
     state.progressionDraft = [];
     renderProgressionBuilder();
   }
 
   function commitProgressionDraft() {
     if (state.progressionDraft.length === 0) return;
+    stopPlayback();
+    normalizeProgressionDraftDurations();
     const queuedChords = state.progressionDraft.map((chord) => ({
       ...chord,
       pitchClasses: [...chord.pitchClasses],
       noteNames: [...chord.noteNames]
     }));
     pushUndoState();
-    queuedChords.forEach((chord) => insertChord(chord, { recordUndo: false, render: false, audition: false }));
+
+    let startBeat = state.insertBeat;
+    const minimumRequired = queuedChords.length * QUANTIZE;
+    if (state.lengthBeats - startBeat < minimumRequired) startBeat = 0;
+    const availableBeats = state.lengthBeats - startBeat;
+    let remainingBeats = availableBeats;
+    let cursorBeat = startBeat;
+
+    queuedChords.forEach((chord, index) => {
+      const remainingChords = queuedChords.length - index - 1;
+      const minimumForRemaining = remainingChords * QUANTIZE;
+      const proportionalDuration = (chord.durationBars / state.progressionBars) * availableBeats;
+      const duration = index === queuedChords.length - 1
+        ? remainingBeats
+        : clamp(quantize(proportionalDuration), QUANTIZE, remainingBeats - minimumForRemaining);
+      insertChord(chord, {
+        recordUndo: false,
+        render: false,
+        audition: false,
+        startBeat: cursorBeat,
+        durationBeats: duration,
+        advanceInsert: false
+      });
+      cursorBeat += duration;
+      remainingBeats -= duration;
+    });
+
+    state.insertBeat = clamp(quantize(cursorBeat), 0, state.lengthBeats - QUANTIZE);
     state.progressionDraft = [];
     renderAll();
-    showToast("PROGRESSION ADDED", `${queuedChords.length} ${queuedChords.length === 1 ? "chord was" : "chords were"} added to the MIDI sequence.`);
+    showToast("PROGRESSION ADDED", `${queuedChords.length} ${queuedChords.length === 1 ? "chord was" : "chords were"} added to the MIDI sequence with the chosen timing proportions.`);
   }
 
   function buildProgressionChord(rootPc, degree, type, diatonicChord) {
@@ -661,7 +882,10 @@
   }
 
   function setViewportMode(mode) {
-    state.viewportMode = mode === "progression" ? "progression" : "midi";
+    const nextMode = mode === "progression" ? "progression" : "midi";
+    if (state.viewportMode !== nextMode && state.isPlaying) stopPlayback();
+    if (state.viewportMode !== nextMode) state.playFromBeat = 0;
+    state.viewportMode = nextMode;
     renderViewportMode();
     if (state.viewportMode === "midi") {
       requestAnimationFrame(() => {
@@ -752,15 +976,23 @@
   }
 
   function insertChord(chord, options = {}) {
-    const { recordUndo = true, render = true, audition = true } = options;
+    const {
+      recordUndo = true,
+      render = true,
+      audition = true,
+      startBeat = null,
+      durationBeats = 1,
+      advanceInsert = true
+    } = options;
     if (recordUndo) pushUndoState();
-    const duration = Math.min(1, state.lengthBeats - state.insertBeat);
-    if (duration < QUANTIZE) {
-      state.insertBeat = 0;
-    }
 
-    const start = state.insertBeat;
-    const actualDuration = Math.min(1, state.lengthBeats - start);
+    let start = Number.isFinite(startBeat) ? quantize(startBeat) : state.insertBeat;
+    if (!Number.isFinite(startBeat) && state.lengthBeats - start < QUANTIZE) {
+      state.insertBeat = 0;
+      start = 0;
+    }
+    start = clamp(start, 0, state.lengthBeats - QUANTIZE);
+    const actualDuration = Math.max(QUANTIZE, Math.min(durationBeats, state.lengthBeats - start));
     const chordPitches = getChordPitches(chord);
 
     const chordId = `chord-${state.nextId++}`;
@@ -790,7 +1022,9 @@
     });
 
     state.selectedNoteIds = new Set(noteIds);
-    state.insertBeat = quantize(Math.min(state.lengthBeats - QUANTIZE, start + actualDuration));
+    if (advanceInsert) {
+      state.insertBeat = quantize(Math.min(state.lengthBeats - QUANTIZE, start + actualDuration));
+    }
     if (render) renderAll();
     if (audition) auditionNotes(chordPitches, actualDuration * 0.85);
   }
@@ -1327,9 +1561,24 @@
     }
   }
 
+  function getPlaybackSpec() {
+    const progressionMode = state.viewportMode === "progression" && state.progressionDraft.length > 0;
+    return progressionMode
+      ? { mode: "progression", lengthBeats: state.progressionBars * 4 }
+      : { mode: "midi", lengthBeats: state.lengthBeats };
+  }
+
+  function hasPlayableContent() {
+    const spec = getPlaybackSpec();
+    const hasMusicalContent = spec.mode === "progression" ? state.progressionDraft.length > 0 : state.notes.length > 0;
+    return hasMusicalContent || state.metronomeEnabled;
+  }
+
   function startPlayback(fromBeat = 0) {
-    if (state.notes.length === 0 && !state.metronomeEnabled) {
-      showToast("SEQUENCE EMPTY", "Add a chord or draw a note, or enable the metronome before starting playback.", "error");
+    const spec = getPlaybackSpec();
+    const hasMusicalContent = spec.mode === "progression" ? state.progressionDraft.length > 0 : state.notes.length > 0;
+    if (!hasMusicalContent && !state.metronomeEnabled) {
+      showToast("SEQUENCE EMPTY", "Choose progression chords, add a MIDI chord, draw a note, or enable the metronome before starting playback.", "error");
       return;
     }
 
@@ -1338,39 +1587,66 @@
     stopScheduledAudio();
 
     state.isPlaying = true;
-    state.playFromBeat = clamp(fromBeat, 0, state.lengthBeats - QUANTIZE);
+    state.playbackMode = spec.mode;
+    state.playbackLengthBeats = spec.lengthBeats;
+    state.playFromBeat = clamp(fromBeat, 0, Math.max(0, spec.lengthBeats - QUANTIZE));
     state.playStartedAt = ctx.currentTime;
     const secondsPerBeat = 60 / state.tempo;
 
-    if (state.metronomeEnabled) scheduleMetronome(ctx, state.playFromBeat);
+    if (state.metronomeEnabled) scheduleMetronome(ctx, state.playFromBeat, spec.lengthBeats);
 
-    state.notes.forEach((note) => {
-      const noteEnd = note.start + note.duration;
-      if (noteEnd <= state.playFromBeat) return;
-      const effectiveStartBeat = Math.max(note.start, state.playFromBeat);
-      const offsetSeconds = (effectiveStartBeat - state.playFromBeat) * secondsPerBeat;
-      const durationSeconds = (noteEnd - effectiveStartBeat) * secondsPerBeat;
-      scheduleSynthNote(note.pitch, note.velocity, ctx.currentTime + offsetSeconds, durationSeconds);
-    });
+    if (spec.mode === "progression") {
+      scheduleProgressionDraft(ctx, state.playFromBeat);
+    } else {
+      state.notes.forEach((note) => {
+        const noteEnd = note.start + note.duration;
+        if (noteEnd <= state.playFromBeat) return;
+        const effectiveStartBeat = Math.max(note.start, state.playFromBeat);
+        const offsetSeconds = (effectiveStartBeat - state.playFromBeat) * secondsPerBeat;
+        const durationSeconds = (noteEnd - effectiveStartBeat) * secondsPerBeat;
+        scheduleSynthNote(note.pitch, note.velocity, ctx.currentTime + offsetSeconds, durationSeconds);
+      });
+    }
 
     elements.playButton.classList.add("is-playing");
     setPlayButtonIcon(true);
     elements.playButton.setAttribute("aria-label", "Pause sequence");
-    elements.playhead.classList.add("visible");
+    updatePlaybackPlayhead(state.playFromBeat);
     updatePlayhead();
+  }
+
+  function scheduleProgressionDraft(ctx, fromBeat) {
+    normalizeProgressionDraftDurations();
+    const secondsPerBeat = 60 / state.tempo;
+    let chordStartBeat = 0;
+
+    state.progressionDraft.forEach((chord) => {
+      const chordDurationBeats = chord.durationBars * 4;
+      const chordEndBeat = chordStartBeat + chordDurationBeats;
+      if (chordEndBeat > fromBeat) {
+        const effectiveStartBeat = Math.max(chordStartBeat, fromBeat);
+        const offsetSeconds = (effectiveStartBeat - fromBeat) * secondsPerBeat;
+        const durationSeconds = Math.max(0.05, (chordEndBeat - effectiveStartBeat) * secondsPerBeat * 0.96);
+        getChordPitches(chord).forEach((pitch) => {
+          scheduleSynthNote(pitch, DEFAULT_VELOCITY, ctx.currentTime + offsetSeconds, durationSeconds);
+        });
+      }
+      chordStartBeat = chordEndBeat;
+    });
   }
 
   function pausePlayback() {
     if (!state.isPlaying) return;
     const elapsed = getAudioContext().currentTime - state.playStartedAt;
     const beatElapsed = elapsed / (60 / state.tempo);
-    state.playFromBeat = clamp(state.playFromBeat + beatElapsed, 0, state.lengthBeats - QUANTIZE);
+    state.playFromBeat = clamp(state.playFromBeat + beatElapsed, 0, Math.max(0, state.playbackLengthBeats - QUANTIZE));
     state.isPlaying = false;
     cancelAnimationFrame(state.playAnimationFrame);
     stopScheduledAudio();
     elements.playButton.classList.remove("is-playing");
     setPlayButtonIcon(false);
     elements.playButton.setAttribute("aria-label", "Play sequence");
+    updatePlaybackPlayhead(state.playFromBeat);
   }
 
   function stopPlayback() {
@@ -1383,14 +1659,39 @@
     elements.playButton.setAttribute("aria-label", "Play sequence");
     elements.playhead.classList.remove("visible");
     elements.playhead.style.left = "0px";
+    const progressionPlayhead = document.getElementById("progressionViewerPlayhead");
+    if (progressionPlayhead) {
+      progressionPlayhead.classList.remove("visible");
+      progressionPlayhead.style.left = "0%";
+    }
   }
 
   function restartPlaybackAtCurrentPosition() {
     if (!state.isPlaying) return;
     const elapsed = getAudioContext().currentTime - state.playStartedAt;
-    const currentBeat = clamp(state.playFromBeat + elapsed / (60 / state.tempo), 0, state.lengthBeats - QUANTIZE);
+    const currentBeat = clamp(
+      state.playFromBeat + elapsed / (60 / state.tempo),
+      0,
+      Math.max(0, state.playbackLengthBeats - QUANTIZE)
+    );
     state.isPlaying = false;
     startPlayback(currentBeat);
+  }
+
+  function updatePlaybackPlayhead(currentBeat) {
+    const progressionPlayhead = document.getElementById("progressionViewerPlayhead");
+    if (state.playbackMode === "progression") {
+      elements.playhead.classList.remove("visible");
+      if (progressionPlayhead) {
+        const percentage = state.playbackLengthBeats > 0 ? (currentBeat / state.playbackLengthBeats) * 100 : 0;
+        progressionPlayhead.style.left = `${clamp(percentage, 0, 100)}%`;
+        progressionPlayhead.classList.add("visible");
+      }
+    } else {
+      if (progressionPlayhead) progressionPlayhead.classList.remove("visible");
+      elements.playhead.style.left = `${currentBeat * state.beatWidth}px`;
+      elements.playhead.classList.add("visible");
+    }
   }
 
   function updatePlayhead() {
@@ -1398,7 +1699,7 @@
     const elapsed = getAudioContext().currentTime - state.playStartedAt;
     const currentBeat = state.playFromBeat + elapsed / (60 / state.tempo);
 
-    if (currentBeat >= state.lengthBeats) {
+    if (currentBeat >= state.playbackLengthBeats) {
       if (state.loopEnabled) {
         state.isPlaying = false;
         startPlayback(0);
@@ -1408,7 +1709,7 @@
       return;
     }
 
-    elements.playhead.style.left = `${currentBeat * state.beatWidth}px`;
+    updatePlaybackPlayhead(currentBeat);
     state.playAnimationFrame = requestAnimationFrame(updatePlayhead);
   }
 
@@ -1487,11 +1788,11 @@
     }, Math.max(0, (endTime - ctx.currentTime) * 1000 + 100));
   }
 
-  function scheduleMetronome(ctx, fromBeat) {
+  function scheduleMetronome(ctx, fromBeat, playbackLengthBeats = state.lengthBeats) {
     const secondsPerBeat = 60 / state.tempo;
     const step = state.metronomeSubdivision;
     let clickBeat = Math.ceil((fromBeat - 0.0001) / step) * step;
-    while (clickBeat < state.lengthBeats) {
+    while (clickBeat < playbackLengthBeats) {
       const offsetSeconds = (clickBeat - fromBeat) * secondsPerBeat;
       const isDownbeat = Math.abs(clickBeat % 4) < 0.0001;
       const isOffbeat = Math.abs(clickBeat % 1) > 0.0001;

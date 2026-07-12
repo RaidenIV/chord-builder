@@ -2051,3 +2051,261 @@ input[type="range"]::-moz-range-thumb {
     min-height: 150px;
   }
 }
+
+/* Progression timing controls */
+.progression-viewer-timeline {
+  height: 84px;
+}
+
+.progression-viewer-blocks {
+  inset: 24px 5px 6px;
+}
+
+.progression-viewer-block {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 0 30px 0 9px;
+  overflow: visible;
+  cursor: default;
+}
+
+.progression-viewer-block small,
+.progression-viewer-block strong,
+.progression-viewer-block > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-viewer-remove {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transform: translateY(-50%);
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.progression-viewer-remove:hover {
+  background: rgba(0, 0, 0, 0.34);
+  color: #fff;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.progression-viewer-resize {
+  position: absolute;
+  top: -1px;
+  right: -6px;
+  bottom: -1px;
+  z-index: 5;
+  width: 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.progression-viewer-resize::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 4px;
+  background: rgba(9, 11, 14, 0.78);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.32);
+  transform: translate(-50%, -50%);
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.progression-viewer-resize:hover::before,
+.progression-viewer-resize:focus-visible::before {
+  border-color: #fff;
+  background: var(--accent);
+  transform: translate(-50%, -50%) scaleY(1.08);
+}
+
+.progression-viewer-resize span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.progression-viewer-playhead {
+  position: absolute;
+  top: 20px;
+  bottom: 5px;
+  left: 0;
+  z-index: 8;
+  display: none;
+  width: 2px;
+  pointer-events: none;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.72);
+}
+
+.progression-viewer-playhead::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 10px;
+  height: 6px;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.progression-viewer-playhead.visible {
+  display: block;
+}
+
+/* Readability pass */
+.brand-block p,
+.control-group > label,
+.field > span,
+.range-field > span,
+.summary-label,
+.insert-position span {
+  font-size: 10px;
+}
+
+select,
+input[type="number"] {
+  font-size: 12px;
+}
+
+.metronome-toggle,
+.loop-toggle,
+.text-button,
+.viewport-mode-switch button,
+.tool-button {
+  font-size: 10px;
+}
+
+.eyebrow {
+  font-size: 10px;
+}
+
+.section-heading h2,
+.editor-header h2 {
+  font-size: 15px;
+}
+
+.section-copy,
+.progression-builder-intro p,
+.analysis-empty p,
+.analysis-detail dd,
+.empty-inspector p,
+.tip-list span,
+.toast span {
+  font-size: 12px;
+}
+
+.chord-info small,
+.progression-token small,
+.analysis-detail dt,
+.timeline-label,
+.timeline-beat,
+.piano-key,
+.chord-band-label,
+.midi-note,
+.legend span,
+.editor-hint,
+.selected-note-display small,
+.sequence-stats dt,
+.tip-list kbd {
+  font-size: 9px;
+}
+
+.progression-bars-control > span,
+.progression-bars-control button,
+.progression-viewer-bar small,
+.progression-viewer-empty,
+.progression-builder-footer .empty-progression,
+.progression-selection-summary,
+.progression-clear-button,
+.progression-commit-button,
+.progression-column-degree,
+.progression-column-roman,
+.progression-root-badge,
+.progression-column-empty,
+.progression-card-quality,
+.progression-card-meta,
+.progression-card-check {
+  font-size: 9px;
+}
+
+.progression-builder-intro h3,
+.chosen-progression-header h3 {
+  font-size: 15px;
+}
+
+.progression-viewer-block small,
+.progression-viewer-block > span {
+  font-size: 9px;
+}
+
+.progression-viewer-block strong {
+  font-size: 13px;
+}
+
+.progression-chord-card {
+  min-height: 52px;
+  gap: 4px;
+  padding: 7px 5px;
+  border-radius: 9px;
+}
+
+.progression-card-name {
+  font-size: 13px;
+}
+
+.progression-card-quality,
+.progression-card-meta {
+  line-height: 1.1;
+}
+
+.progression-column-header {
+  min-height: 58px;
+}
+
+.progression-column-empty {
+  line-height: 1.35;
+}
+
+.empty-inspector strong,
+.secondary-button,
+.danger-button,
+.toast strong {
+  font-size: 10px;
+}
+
+.progression-chord-card-list {
+  justify-items: center;
+}
+
+.progression-chord-card {
+  width: 100%;
+  max-width: 110px;
+  min-height: 58px;
+}
