@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0d10">
+  <meta name="description" content="A browser-based chord progression builder with music theory tools, an editable MIDI piano roll, playback, MIDI import, and MIDI export.">
+  <title>ChordLab — Chord Progression Builder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block" aria-label="ChordLab">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <h1>CHORDLAB</h1>
+          <p>PROGRESSION BUILDER</p>
+        </div>
+      </div>
+
+      <div class="transport" aria-label="Transport controls">
+        <button class="icon-button primary" id="playButton" type="button" aria-label="Play sequence" title="Play / pause (Space)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="icon-button" id="stopButton" type="button" aria-label="Stop sequence" title="Stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>
+        </button>
+        <div class="tempo-control control-group">
+          <label for="tempoInput">TEMPO</label>
+          <div class="number-stepper">
+            <button type="button" data-step-target="tempoInput" data-step="-1" aria-label="Decrease tempo">−</button>
+            <input id="tempoInput" type="number" min="40" max="240" step="1" value="120" inputmode="numeric">
+            <span>BPM</span>
+            <button type="button" data-step-target="tempoInput" data-step="1" aria-label="Increase tempo">+</button>
+          </div>
+        </div>
+        <div class="length-control control-group">
+          <label for="lengthSelect">SEQUENCE</label>
+          <select id="lengthSelect">
+            <option value="4">4 BEATS</option>
+            <option value="8" selected>8 BEATS</option>
+            <option value="16">16 BEATS</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="file-actions">
+        <input id="midiFileInput" type="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+        <button class="text-button" id="importButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v10.17l3.59-3.58L18 11l-6 6-6-6 1.41-1.41L11 13.17V3zM5 19h14v2H5z"/></svg>
+          IMPORT MIDI
+        </button>
+        <button class="text-button accent" id="exportButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 21h2V10.83l3.59 3.58L18 13l-6-6-6 6 1.41 1.41L11 10.83V21zM5 3h14v2H5z"/></svg>
+          EXPORT MIDI
+        </button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="theory-panel panel">
+        <section class="panel-section setup-section">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">01 / HARMONIC SETUP</span>
+              <h2>KEY &amp; SCALE</h2>
+            </div>
+          </div>
+
+          <div class="field-grid two-column">
+            <label class="field">
+              <span>KEY</span>
+              <select id="keySelect" aria-label="Musical key"></select>
+            </label>
+            <label class="field">
+              <span>SCALE</span>
+              <select id="scaleSelect" aria-label="Musical scale"></select>
+            </label>
+          </div>
+
+          <div class="scale-summary" aria-live="polite">
+            <div>
+              <span class="summary-label">SCALE NOTES</span>
+              <strong id="scaleNotes">C · D · E · F · G · A · B</strong>
+            </div>
+            <div class="scale-badge" id="scaleBadge">C MAJOR</div>
+          </div>
+        </section>
+
+        <section class="panel-section sound-section">
+          <div class="section-heading compact">
+            <div>
+              <span class="eyebrow">02 / INSTRUMENT</span>
+              <h2>SOUND</h2>
+            </div>
+          </div>
+          <div class="field-grid two-column">
+            <label class="field">
+              <span>TYPE</span>
+              <select id="soundSelect">
+                <option value="pad" selected>WARM PAD</option>
+                <option value="keys">ELECTRIC KEYS</option>
+                <option value="lead">ANALOG LEAD</option>
+                <option value="pluck">PLUCK</option>
+                <option value="bass">SYNTH BASS</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>CHORD VOICING</span>
+              <select id="voicingSelect">
+                <option value="triad" selected>TRIADS</option>
+                <option value="seventh">SEVENTHS</option>
+                <option value="open">OPEN TRIADS</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel-section chord-section">
+          <div class="section-heading chord-heading">
+            <div>
+              <span class="eyebrow">03 / DIATONIC PALETTE</span>
+              <h2>CHORD OPTIONS</h2>
+            </div>
+            <div class="insert-position">
+              <span>INSERT AT</span>
+              <strong id="insertBeatLabel">1.1</strong>
+            </div>
+          </div>
+
+          <p class="section-copy">Choose a chord from the selected key and scale. Each chord is placed at the insert cursor and can be edited in the piano roll.</p>
+          <div class="chord-grid" id="chordGrid" aria-live="polite"></div>
+        </section>
+
+        <section class="panel-section theory-section">
+          <div class="section-heading compact">
+            <div>
+              <span class="eyebrow">04 / MUSIC THEORY</span>
+              <h2>PROGRESSION ANALYSIS</h2>
+            </div>
+          </div>
+          <div class="analysis-card" id="analysisCard">
+            <div class="analysis-empty">
+              <span class="analysis-icon">Ⅳ</span>
+              <p>Add chords to see harmonic function, Roman numeral analysis, and progression guidance.</p>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="editor-panel panel">
+        <div class="editor-header">
+          <div>
+            <span class="eyebrow">MIDI EDITOR</span>
+            <h2>PIANO ROLL</h2>
+          </div>
+          <div class="editor-tools">
+            <button class="tool-button" id="selectToolButton" type="button" aria-pressed="true" title="Select and move notes">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6.1 1.7L10 19z"/></svg>
+              SELECT
+            </button>
+            <button class="tool-button" id="drawToolButton" type="button" aria-pressed="false" title="Draw notes">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg>
+              DRAW
+            </button>
+            <button class="tool-button" id="deleteButton" type="button" disabled title="Delete selected notes (Delete)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6zm3.46-7.12l1.41-1.41L12 11.59l1.12-1.12 1.41 1.41L13.41 13l1.12 1.12-1.41 1.41L12 14.41l-1.12 1.12-1.41-1.41L10.59 13zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              DELETE
+            </button>
+            <button class="tool-button" id="clearButton" type="button" title="Clear all notes">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v2H5zm2 4h10v10H7z"/></svg>
+              CLEAR
+            </button>
+          </div>
+        </div>
+
+        <div class="timeline-strip">
+          <div class="timeline-label">BEAT</div>
+          <div class="timeline-ruler" id="timelineRuler"></div>
+        </div>
+
+        <div class="piano-roll-wrap" id="pianoRollWrap">
+          <div class="piano-keyboard" id="pianoKeyboard" aria-hidden="true"></div>
+          <div class="piano-roll-scroll" id="pianoRollScroll">
+            <div class="piano-roll" id="pianoRoll" role="application" aria-label="Editable MIDI piano roll. Double click to add a note, drag notes to move, and drag the right edge to resize.">
+              <div class="grid-layer" id="gridLayer"></div>
+              <div class="scale-highlight-layer" id="scaleHighlightLayer"></div>
+              <div class="chord-band-layer" id="chordBandLayer"></div>
+              <div class="note-layer" id="noteLayer"></div>
+              <div class="insert-cursor" id="insertCursor" aria-hidden="true"></div>
+              <div class="playhead" id="playhead" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-footer">
+          <div class="legend">
+            <span><i class="legend-swatch scale"></i> IN SCALE</span>
+            <span><i class="legend-swatch chord"></i> CHORD NOTE</span>
+            <span><i class="legend-line"></i> INSERT CURSOR</span>
+          </div>
+          <div class="editor-hint">DOUBLE-CLICK TO ADD · DRAG TO MOVE · DRAG RIGHT EDGE TO RESIZE · DELETE TO REMOVE</div>
+        </div>
+      </section>
+
+      <aside class="inspector-panel panel">
+        <section class="panel-section inspector-section">
+          <div class="section-heading compact">
+            <div>
+              <span class="eyebrow">NOTE INSPECTOR</span>
+              <h2>EDIT MIDI NOTE</h2>
+            </div>
+          </div>
+
+          <div class="empty-inspector" id="emptyInspector">
+            <div class="empty-note-glyph" aria-hidden="true">♪</div>
+            <strong>NO NOTE SELECTED</strong>
+            <p>Select a note in the piano roll to edit pitch, timing, duration, and velocity.</p>
+          </div>
+
+          <div class="note-inspector" id="noteInspector" hidden>
+            <div class="selected-note-display">
+              <span id="selectedNoteName">C4</span>
+              <small id="selectedNoteMidi">MIDI 60</small>
+            </div>
+
+            <label class="field">
+              <span>PITCH</span>
+              <select id="notePitchInput"></select>
+            </label>
+
+            <div class="field-grid two-column inspector-grid">
+              <label class="field">
+                <span>START BEAT</span>
+                <input id="noteStartInput" type="number" min="0" step="0.25">
+              </label>
+              <label class="field">
+                <span>DURATION</span>
+                <input id="noteDurationInput" type="number" min="0.25" step="0.25">
+              </label>
+            </div>
+
+            <label class="field range-field">
+              <span><b>VELOCITY</b><output id="velocityOutput">96</output></span>
+              <input id="noteVelocityInput" type="range" min="1" max="127" value="96">
+            </label>
+
+            <div class="inspector-actions">
+              <button id="duplicateNoteButton" class="secondary-button" type="button">DUPLICATE</button>
+              <button id="deleteNoteInspectorButton" class="danger-button" type="button">DELETE NOTE</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section sequence-section">
+          <div class="section-heading compact">
+            <div>
+              <span class="eyebrow">SEQUENCE DATA</span>
+              <h2>OVERVIEW</h2>
+            </div>
+          </div>
+          <dl class="sequence-stats">
+            <div><dt>NOTES</dt><dd id="noteCountStat">0</dd></div>
+            <div><dt>CHORDS</dt><dd id="chordCountStat">0</dd></div>
+            <div><dt>RANGE</dt><dd id="rangeStat">—</dd></div>
+            <div><dt>LENGTH</dt><dd id="lengthStat">8 BEATS</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel-section tips-section">
+          <div class="section-heading compact">
+            <div>
+              <span class="eyebrow">WORKFLOW</span>
+              <h2>QUICK TIPS</h2>
+            </div>
+          </div>
+          <ul class="tip-list">
+            <li><kbd>SPACE</kbd><span>Play or pause the sequence.</span></li>
+            <li><kbd>D</kbd><span>Switch to the draw tool.</span></li>
+            <li><kbd>V</kbd><span>Switch to the select tool.</span></li>
+            <li><kbd>DEL</kbd><span>Delete the selected note.</span></li>
+          </ul>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
