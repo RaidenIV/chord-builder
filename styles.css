@@ -354,6 +354,41 @@ input[type="number"]:hover {
   width: 118px;
 }
 
+.loop-toggle {
+  height: 38px;
+  min-width: 70px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: 800 8px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.loop-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.loop-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text-soft);
+}
+
+.loop-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .file-actions {
   justify-self: end;
   display: flex;
@@ -833,46 +868,38 @@ input[type="number"]:hover {
 }
 
 .progression-chord-grid {
-  min-width: 910px;
+  min-width: 1120px;
   min-height: 100%;
   display: grid;
-  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  align-items: start;
   gap: 10px;
 }
 
 .progression-chord-column {
-  min-height: 310px;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  gap: 14px;
-  padding: 15px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: rgba(18, 22, 27, 0.94);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
-}
-
-.progression-chord-column:hover {
-  border-color: var(--accent);
-  background: rgba(255, 138, 0, 0.07);
-  transform: translateY(-2px);
 }
 
 .progression-chord-column.is-root {
   border-color: var(--accent);
-  background: rgba(255, 138, 0, 0.08);
+  background: rgba(255, 138, 0, 0.055);
   box-shadow: inset 0 3px 0 var(--accent);
 }
 
 .progression-chord-column.is-unavailable {
+  min-height: 190px;
   opacity: 0.42;
-  cursor: not-allowed;
 }
 
 .progression-column-topline {
+  min-height: 21px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -887,11 +914,12 @@ input[type="number"]:hover {
   border: 1px solid var(--accent-mid);
   color: var(--accent);
   font-size: 7px;
+  white-space: nowrap;
 }
 
 .progression-root-note {
   color: var(--accent);
-  font: 800 40px/0.95 var(--font-mono);
+  font: 800 38px/0.95 var(--font-mono);
   letter-spacing: -0.08em;
 }
 
@@ -899,73 +927,123 @@ input[type="number"]:hover {
   color: var(--text-soft);
 }
 
-.progression-column-body {
-  align-self: start;
+.progression-column-scale-info {
   display: grid;
-  gap: 9px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 31px;
+  padding: 7px 0 9px;
+  border-bottom: 1px solid var(--border);
 }
 
-.progression-column-roman {
+.progression-column-scale-info > span {
+  color: var(--accent);
+  font: 800 10px/1 var(--font-mono);
+}
+
+.progression-column-scale-info small {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-dim);
-  font: 800 12px/1 var(--font-mono);
+  font: 700 7px/1.35 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.progression-column-body strong {
-  color: var(--text);
-  font-size: 18px;
-  line-height: 1;
+.progression-column-empty {
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1.5;
 }
 
-.progression-column-notes {
-  color: var(--text-soft);
-  font: 700 8px/1.5 var(--font-mono);
-}
-
-.progression-column-meta {
+.progression-chord-card-list {
   display: grid;
   gap: 7px;
-  margin: 0;
 }
 
-.progression-column-meta div {
+.progression-chord-card {
+  min-width: 0;
   display: grid;
-  gap: 3px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 
-.progression-column-meta dt,
-.progression-column-meta dd {
-  margin: 0;
+.progression-chord-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-1px);
 }
 
-.progression-column-meta dt {
-  color: var(--text-dim);
-  font: 700 7px/1 var(--font-mono);
-  letter-spacing: 0.08em;
+.progression-chord-card.is-diatonic {
+  border-color: var(--accent-mid);
+  background: rgba(255, 138, 0, 0.07);
 }
 
-.progression-column-meta dd {
-  color: var(--text-soft);
-  font-size: 9px;
-  line-height: 1.35;
-}
-
-.progression-column-action {
+.progression-card-topline,
+.progression-card-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  gap: 5px;
   color: var(--text-dim);
-  font: 800 8px/1 var(--font-mono);
+  font: 700 7px/1 var(--font-mono);
   letter-spacing: 0.07em;
 }
 
-.progression-column-action b {
+.progression-card-topline {
+  justify-content: space-between;
+}
+
+.progression-card-topline b {
+  padding: 3px 4px;
+  border: 1px solid var(--accent-mid);
   color: var(--accent);
-  font-size: 16px;
-  line-height: 1;
+  font-size: 6px;
+  letter-spacing: 0.05em;
+}
+
+.progression-card-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-card-notes {
+  overflow: hidden;
+  color: var(--text-soft);
+  font: 700 7px/1.35 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-card-footer {
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.progression-card-footer small {
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.progression-card-footer b {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 0.8;
 }
 
 .progression-builder-footer {

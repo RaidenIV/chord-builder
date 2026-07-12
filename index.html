@@ -58,6 +58,13 @@
             <option value="16">16 BEATS</option>
           </select>
         </div>
+        <div class="loop-control control-group">
+          <label for="loopToggle">LOOP</label>
+          <button class="loop-toggle" id="loopToggle" type="button" aria-pressed="false" title="Loop sequence playback">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4V7H8a4 4 0 00-4 4v1H2v-1a6 6 0 016-6h9V2zm5 10v1a6 6 0 01-6 6H7v3l-4-4 4-4v3h9a4 4 0 004-4v-1h2z"/></svg>
+            <span>OFF</span>
+          </button>
+        </div>
       </div>
 
       <div class="file-actions">
@@ -236,7 +243,7 @@
               <span class="eyebrow">DIATONIC CHORD MAP</span>
               <h3>BUILD FROM THE SELECTED ROOT</h3>
             </div>
-            <p>Choose any column to add that scale-degree chord at the current insert position. The first column is the selected root chord.</p>
+            <p>Choose a chord card from any column to add that chord quality at the current insert position. Each column uses its scale-degree root note, and the first column is the selected root.</p>
           </div>
           <div class="progression-builder-scroll">
             <div class="progression-chord-grid" id="progressionChordGrid" aria-live="polite"></div>

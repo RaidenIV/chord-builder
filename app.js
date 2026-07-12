@@ -73,6 +73,8 @@
     "0,3,7": "minor",
     "0,3,6": "diminished",
     "0,4,8": "augmented",
+    "0,2,7": "suspended 2",
+    "0,5,7": "suspended 4",
     "0,4,7,11": "major 7",
     "0,3,7,10": "minor 7",
     "0,4,7,10": "dominant 7",
@@ -80,6 +82,20 @@
     "0,3,6,9": "diminished 7",
     "0,4,8,11": "augmented major 7"
   };
+
+  const PROGRESSION_CHORD_TYPES = [
+    { id: "major", label: "MAJOR", quality: "major", suffix: "", intervals: [0, 4, 7] },
+    { id: "minor", label: "MINOR", quality: "minor", suffix: "m", intervals: [0, 3, 7] },
+    { id: "diminished", label: "DIMINISHED", quality: "diminished", suffix: "dim", intervals: [0, 3, 6] },
+    { id: "augmented", label: "AUGMENTED", quality: "augmented", suffix: "+", intervals: [0, 4, 8] },
+    { id: "sus2", label: "SUS 2", quality: "suspended 2", suffix: "sus2", intervals: [0, 2, 7] },
+    { id: "sus4", label: "SUS 4", quality: "suspended 4", suffix: "sus4", intervals: [0, 5, 7] },
+    { id: "major7", label: "MAJOR 7", quality: "major 7", suffix: "maj7", intervals: [0, 4, 7, 11] },
+    { id: "minor7", label: "MINOR 7", quality: "minor 7", suffix: "m7", intervals: [0, 3, 7, 10] },
+    { id: "dominant7", label: "DOMINANT 7", quality: "dominant 7", suffix: "7", intervals: [0, 4, 7, 10] },
+    { id: "halfDiminished7", label: "HALF-DIM 7", quality: "half-diminished 7", suffix: "m7♭5", intervals: [0, 3, 6, 10] },
+    { id: "diminished7", label: "DIMINISHED 7", quality: "diminished 7", suffix: "dim7", intervals: [0, 3, 6, 9] }
+  ];
 
   const ROW_HEIGHT = 18;
   const BEAT_WIDTH = 112;
@@ -112,6 +128,7 @@
     drag: null,
     metronomeEnabled: false,
     metronomeSubdivision: 1,
+    loopEnabled: false,
     viewportMode: "midi",
     undoStack: [],
     inspectorEditActive: false,
@@ -122,7 +139,7 @@
 
   function cacheElements() {
     [
-      "playButton", "stopButton", "tempoInput", "metronomeToggle", "metronomeDivision", "lengthSelect", "importButton", "exportButton", "midiFileInput",
+      "playButton", "stopButton", "tempoInput", "metronomeToggle", "metronomeDivision", "lengthSelect", "loopToggle", "importButton", "exportButton", "midiFileInput",
       "keySelect", "scaleSelect", "scaleNotes", "scaleBadge", "soundSelect", "voicingSelect", "insertBeatLabel",
       "chordGrid", "analysisCard", "selectToolButton", "drawToolButton", "undoButton", "deleteButton", "clearButton",
       "midiModeButton", "progressionModeButton", "editorEyebrow", "editorTitle", "midiEditorView", "progressionBuilderView",
@@ -174,6 +191,10 @@
     elements.metronomeDivision.addEventListener("change", () => {
       state.metronomeSubdivision = Number(elements.metronomeDivision.value) === 0.5 ? 0.5 : 1;
       if (state.isPlaying) restartPlaybackAtCurrentPosition();
+    });
+    elements.loopToggle.addEventListener("click", () => {
+      state.loopEnabled = !state.loopEnabled;
+      renderLoopControl();
     });
 
     document.querySelectorAll("[data-step-target]").forEach((button) => {
@@ -304,6 +325,7 @@
     renderTheory();
     renderViewportMode();
     renderMetronomeControl();
+    renderLoopControl();
     renderUndoState();
     renderTimeline();
     renderKeyboard();
@@ -348,48 +370,74 @@
   }
 
   function renderProgressionBuilder() {
-    const chords = buildDiatonicChords();
-    const columns = Array.from({ length: 7 }, (_, degree) => chords[degree] || null);
+    const diatonicChords = buildDiatonicChords();
+    const scale = getCurrentScale();
+    const columns = Array.from({ length: 7 }, (_, degree) => {
+      const interval = scale.intervals[degree];
+      if (interval === undefined) return null;
+      return {
+        degree,
+        rootPc: (state.keyPc + interval) % 12,
+        diatonicChord: diatonicChords[degree] || null
+      };
+    });
     elements.progressionChordGrid.innerHTML = "";
 
-    columns.forEach((chord, degree) => {
-      const column = document.createElement("button");
-      column.type = "button";
-      column.className = `progression-chord-column${degree === 0 ? " is-root" : ""}${chord ? "" : " is-unavailable"}`;
-      if (!chord) {
-        column.disabled = true;
+    columns.forEach((columnData, degree) => {
+      const column = document.createElement("section");
+      column.className = `progression-chord-column${degree === 0 ? " is-root" : ""}${columnData ? "" : " is-unavailable"}`;
+
+      if (!columnData) {
         column.innerHTML = `
           <div class="progression-column-topline"><span>DEGREE ${String(degree + 1).padStart(2, "0")}</span></div>
           <div class="progression-root-note">—</div>
-          <div class="progression-column-body"><strong>UNAVAILABLE</strong><span class="progression-column-notes">This scale does not contain a seventh diatonic degree.</span></div>
-          <div class="progression-column-action"><span>NO CHORD</span></div>
+          <div class="progression-column-empty">This scale does not contain a seventh scale degree.</div>
         `;
         elements.progressionChordGrid.appendChild(column);
         return;
       }
 
-      const useCount = state.chordEvents.filter((event) => event.degree === chord.degree).length;
-      column.title = `Add ${chord.name} at beat ${formatBeat(state.insertBeat)}`;
-      if (degree === 0) column.setAttribute("aria-current", "true");
+      const { rootPc, diatonicChord } = columnData;
+      const cardList = document.createElement("div");
+      cardList.className = "progression-chord-card-list";
+
+      PROGRESSION_CHORD_TYPES.forEach((type) => {
+        const chord = buildProgressionChord(rootPc, degree, type, diatonicChord);
+        const isDiatonic = Boolean(diatonicChord) && samePitchClassSet(chord.pitchClasses, diatonicChord.pitchClasses);
+        const useCount = state.chordEvents.filter((event) => event.degree === degree && event.quality === chord.quality).length;
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `progression-chord-card${isDiatonic ? " is-diatonic" : ""}`;
+        card.title = `Add ${chord.name} at beat ${formatBeat(state.insertBeat)}`;
+        card.innerHTML = `
+          <span class="progression-card-topline">
+            <span>${escapeHtml(type.label)}</span>
+            ${isDiatonic ? '<b>DIATONIC</b>' : ""}
+          </span>
+          <span class="progression-card-name">${escapeHtml(chord.name)}</span>
+          <span class="progression-card-notes">${escapeHtml(chord.noteNames.join(" · "))}</span>
+          <span class="progression-card-footer">
+            <small>${escapeHtml(chord.roman)}</small>
+            <small>${useCount ? `${useCount} USED` : `ADD ${formatBeat(state.insertBeat)}`}</small>
+            <b aria-hidden="true">+</b>
+          </span>
+        `;
+        card.addEventListener("click", () => insertChord(chord));
+        cardList.appendChild(card);
+      });
+
       column.innerHTML = `
         <div class="progression-column-topline">
           <span>DEGREE ${String(degree + 1).padStart(2, "0")}</span>
           ${degree === 0 ? '<span class="progression-root-badge">SELECTED ROOT</span>' : ""}
         </div>
-        <div class="progression-root-note">${escapeHtml(NOTE_NAMES[chord.rootPc])}</div>
-        <div class="progression-column-body">
-          <span class="progression-column-roman">${escapeHtml(chord.roman)}</span>
-          <strong>${escapeHtml(chord.name)}</strong>
-          <span class="progression-column-notes">${escapeHtml(chord.noteNames.join(" · "))}</span>
-          <dl class="progression-column-meta">
-            <div><dt>FUNCTION</dt><dd>${escapeHtml(chord.function)}</dd></div>
-            <div><dt>QUALITY</dt><dd>${escapeHtml(chord.quality.toUpperCase())}</dd></div>
-            <div><dt>USED</dt><dd>${useCount} TIME${useCount === 1 ? "" : "S"}</dd></div>
-          </dl>
+        <div class="progression-root-note">${escapeHtml(NOTE_NAMES[rootPc])}</div>
+        <div class="progression-column-scale-info">
+          <span>${escapeHtml(scale.romans[degree] || romanNumeral(degree + 1))}</span>
+          <small>${escapeHtml(diatonicChord ? `${diatonicChord.name} · ${diatonicChord.function}` : "Scale degree")}</small>
         </div>
-        <div class="progression-column-action"><span>ADD AT ${escapeHtml(formatBeat(state.insertBeat))}</span><b>+</b></div>
       `;
-      column.addEventListener("click", () => insertChord(chord));
+      column.appendChild(cardList);
       elements.progressionChordGrid.appendChild(column);
     });
 
@@ -404,6 +452,47 @@
       <span class="footer-label">CURRENT PROGRESSION</span>
       ${progression.map((chord) => `<span class="progression-token"><strong>${escapeHtml(chord.roman)}</strong><small>${escapeHtml(chord.name)}</small></span>`).join('<span class="progression-arrow">→</span>')}
     `;
+  }
+
+  function buildProgressionChord(rootPc, degree, type, diatonicChord) {
+    const pitchClasses = type.intervals.map((interval) => (rootPc + interval) % 12);
+    const isDiatonic = Boolean(diatonicChord) && samePitchClassSet(pitchClasses, diatonicChord.pitchClasses);
+    return {
+      degree,
+      rootPc,
+      pitchClasses,
+      roman: romanForChordType(degree, type.id),
+      name: `${NOTE_NAMES[rootPc]}${type.suffix}`,
+      quality: type.quality,
+      function: isDiatonic ? diatonicChord.function : "Color",
+      noteNames: pitchClasses.map((pc) => NOTE_NAMES[pc])
+    };
+  }
+
+  function samePitchClassSet(a, b) {
+    if (a.length !== b.length) return false;
+    const left = [...a].sort((x, y) => x - y);
+    const right = [...b].sort((x, y) => x - y);
+    return left.every((value, index) => value === right[index]);
+  }
+
+  function romanForChordType(degree, typeId) {
+    const upper = romanNumeral(degree + 1);
+    const lower = upper.toLowerCase();
+    const labels = {
+      major: upper,
+      minor: lower,
+      diminished: `${lower}°`,
+      augmented: `${upper}+`,
+      sus2: `${upper}sus2`,
+      sus4: `${upper}sus4`,
+      major7: `${upper}maj7`,
+      minor7: `${lower}7`,
+      dominant7: `${upper}7`,
+      halfDiminished7: `${lower}ø7`,
+      diminished7: `${lower}°7`
+    };
+    return labels[typeId] || upper;
   }
 
   function setViewportMode(mode) {
@@ -432,6 +521,12 @@
     elements.metronomeToggle.setAttribute("aria-pressed", String(state.metronomeEnabled));
     elements.metronomeToggle.querySelector("span").textContent = state.metronomeEnabled ? "ON" : "OFF";
     elements.metronomeDivision.value = String(state.metronomeSubdivision);
+  }
+
+  function renderLoopControl() {
+    elements.loopToggle.setAttribute("aria-pressed", String(state.loopEnabled));
+    elements.loopToggle.querySelector("span").textContent = state.loopEnabled ? "ON" : "OFF";
+    elements.loopToggle.title = state.loopEnabled ? "Disable sequence loop" : "Loop sequence playback";
   }
 
   function buildDiatonicChords() {
@@ -477,6 +572,8 @@
       minor: "m",
       diminished: "dim",
       augmented: "+",
+      "suspended 2": "sus2",
+      "suspended 4": "sus4",
       "major 7": "maj7",
       "minor 7": "m7",
       "dominant 7": "7",
@@ -1127,7 +1224,12 @@
     const currentBeat = state.playFromBeat + elapsed / (60 / state.tempo);
 
     if (currentBeat >= state.lengthBeats) {
-      stopPlayback();
+      if (state.loopEnabled) {
+        state.isPlaying = false;
+        startPlayback(0);
+      } else {
+        stopPlayback();
+      }
       return;
     }
 
