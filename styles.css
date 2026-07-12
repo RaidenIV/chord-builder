@@ -22,8 +22,8 @@
   --radius-small: 8px;
   --radius: 10px;
   --radius-large: 14px;
-  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -826,7 +826,7 @@ input[type="number"]:hover {
 
 .progression-builder-view {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   background:
@@ -844,346 +844,224 @@ input[type="number"]:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  margin: 14px 16px 0;
-  padding: 15px 17px;
+  gap: 20px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgba(18, 22, 27, 0.9);
 }
 
-.progression-builder-intro h3 {
-  margin: 7px 0 0;
-  font-size: 15px;
+.progression-builder-intro h3,
+.chosen-progression-header h3 {
+  margin: 6px 0 0;
+  font-size: 13px;
   line-height: 1;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.08em;
 }
 
 .progression-builder-intro p {
-  max-width: 500px;
+  max-width: 560px;
   margin: 0;
   color: var(--text-dim);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 9px;
+  line-height: 1.45;
   text-align: right;
 }
 
-.progression-builder-intro strong {
-  color: var(--accent);
-  font: 800 9px/1 var(--font-mono);
-  letter-spacing: 0.04em;
-}
-
-.progression-builder-scroll {
+.chosen-progression-viewer {
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 14px 16px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) var(--surface-1);
-}
-
-.progression-chord-grid {
-  min-width: 910px;
-  min-height: 100%;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(118px, 1fr));
-  align-items: start;
-  gap: 10px;
-}
-
-.progression-chord-column {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: 9px;
-  padding: 9px;
+  margin: 10px 16px 0;
+  padding: 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius-large);
-  background: rgba(18, 22, 27, 0.9);
+  background: rgba(18, 22, 27, 0.94);
+  animation: viewer-expand-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.progression-chord-column.is-root {
-  border-color: var(--accent);
-  background: rgba(255, 138, 0, 0.055);
-  box-shadow: inset 0 3px 0 var(--accent);
-}
-
-.progression-chord-column.is-unavailable {
-  min-height: 180px;
-  opacity: 0.42;
-}
-
-.progression-column-header {
-  position: relative;
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto 1fr;
+.chosen-progression-header {
+  display: flex;
   align-items: center;
-  gap: 4px 7px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
 }
 
-.progression-chord-column.is-root .progression-column-header {
-  border-color: var(--accent-mid);
-  background: var(--accent-soft);
+.progression-bars-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.progression-column-degree,
-.progression-column-roman {
+.progression-bars-control > span {
+  margin-right: 3px;
   color: var(--text-dim);
   font: 800 7px/1 var(--font-mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.1em;
 }
 
-.progression-column-degree {
-  align-self: start;
-}
-
-.progression-column-roman {
-  justify-self: end;
-  align-self: start;
-  color: var(--accent);
-}
-
-.progression-root-note {
-  grid-column: 1 / -1;
-  align-self: end;
-  color: var(--text-soft);
-  font: 800 27px/0.95 var(--font-mono);
-  letter-spacing: -0.06em;
-}
-
-.progression-chord-column.is-root .progression-root-note {
-  color: var(--accent);
-}
-
-.progression-root-badge {
-  position: absolute;
-  right: 9px;
-  bottom: 9px;
-  padding: 4px 6px;
-  border: 1px solid var(--accent-mid);
-  border-radius: 6px;
-  color: var(--accent);
-  background: rgba(255, 138, 0, 0.08);
-  font: 800 6px/1 var(--font-mono);
-  letter-spacing: 0.07em;
-}
-
-.progression-column-empty {
-  padding: 12px 7px;
+.progression-bars-control button {
+  min-width: 31px;
+  height: 27px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-3);
   color: var(--text-dim);
-  font: 700 8px/1.5 var(--font-mono);
-  text-align: center;
+  cursor: pointer;
+  font: 800 8px/1 var(--font-mono);
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
-.progression-chord-card-list {
-  display: grid;
-  gap: 7px;
+.progression-bars-control button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-soft);
+  transform: translateY(-1px);
 }
 
-.progression-chord-card {
+.progression-bars-control button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.progression-viewer-timeline {
   position: relative;
-  min-width: 0;
-  aspect-ratio: 1.48 / 1;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 5px;
-  padding: 9px 7px;
+  height: 70px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-1);
-  color: var(--text);
-  text-align: center;
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.progression-chord-card::before {
-  content: "";
+.progression-viewer-bars {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 55%);
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(var(--viewer-bars), minmax(0, 1fr));
 }
 
-.progression-chord-card:hover {
-  border-color: var(--accent-mid);
-  background: var(--surface-3);
-  transform: translateY(-2px) scale(1.025);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.24);
+.progression-viewer-bar {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+
+.progression-viewer-bar:last-child {
+  border-right: 0;
+}
+
+.progression-viewer-bar small {
+  display: block;
+  padding: 5px 6px;
+  color: var(--text-dim);
+  font: 700 6px/1 var(--font-mono);
+}
+
+.progression-viewer-blocks {
+  position: absolute;
+  inset: 20px 5px 5px;
+}
+
+.progression-viewer-block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 34px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 5px;
+  margin-inline: 2px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  background: var(--progression-block-color);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2);
+  animation: progression-block-in 190ms cubic-bezier(0.2, 0.85, 0.3, 1) both;
+  transition: filter 140ms ease, transform 140ms ease, border-color 140ms ease;
+}
+
+.progression-viewer-block:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.38);
   z-index: 2;
 }
 
-.progression-chord-card:active {
-  transform: translateY(0) scale(0.985);
+.progression-viewer-block small,
+.progression-viewer-block span {
+  opacity: 0.76;
+  font: 700 6px/1 var(--font-mono);
 }
 
-.progression-chord-card.is-diatonic {
-  border-color: rgba(255, 138, 0, 0.42);
-  background: rgba(255, 138, 0, 0.065);
-}
-
-.progression-chord-card.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(255, 138, 0, 0.18);
-}
-
-.progression-card-quality {
-  max-width: 100%;
+.progression-viewer-block strong {
+  min-width: 0;
   overflow: hidden;
-  color: var(--text-dim);
-  font: 800 6px/1 var(--font-mono);
-  letter-spacing: 0.08em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.progression-card-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.progression-card-meta {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--text-dim);
-  font: 700 6px/1 var(--font-mono);
-  letter-spacing: 0.04em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.progression-viewer-block i {
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
 }
 
-.progression-chord-card.is-diatonic .progression-card-meta,
-.progression-chord-card.is-selected .progression-card-name {
-  color: var(--accent);
-}
-
-.progression-card-count {
+.progression-viewer-empty {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 18px;
-  height: 18px;
+  inset: 20px 6px 6px;
   display: grid;
   place-items: center;
-  padding: 0 5px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #17110a;
-  font: 900 8px/1 var(--font-mono);
-  animation: count-expand-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  color: var(--text-dim);
+  font: 700 7px/1 var(--font-mono);
+  letter-spacing: 0.08em;
 }
 
 .progression-builder-footer {
-  min-height: 70px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  margin: 0 16px 14px;
-  padding: 10px 11px 10px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-}
-
-.progression-draft-summary {
-  min-width: 0;
-  display: grid;
-  gap: 7px;
-}
-
-.progression-builder-footer .footer-label {
-  color: var(--text-dim);
-  font: 700 7px/1 var(--font-mono);
-  letter-spacing: 0.1em;
-}
-
-.progression-builder-footer .empty-progression {
-  color: var(--text-dim);
-  font-size: 9px;
-}
-
-.progression-draft-list {
-  min-width: 0;
+  min-height: 36px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  overflow: auto hidden;
-  padding-bottom: 1px;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
 }
 
-.progression-draft-token {
-  flex: 0 0 auto;
-  min-height: 31px;
-  display: inline-grid;
-  grid-template-columns: auto auto auto;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-small);
-  background: var(--surface-3);
+.progression-builder-footer .empty-progression,
+.progression-selection-summary {
+  color: var(--text-dim);
+  font: 700 7px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+.progression-selection-summary {
   color: var(--text-soft);
-  cursor: pointer;
-  animation: token-expand-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
-}
-
-.progression-draft-token:hover {
-  border-color: var(--accent-mid);
-  background: var(--accent-soft);
-  transform: translateY(-1px) scale(1.02);
-}
-
-.progression-draft-token small {
-  color: var(--text-dim);
-  font: 700 6px/1 var(--font-mono);
-}
-
-.progression-draft-token strong {
-  color: var(--accent);
-  font: 800 9px/1 var(--font-mono);
-}
-
-.progression-draft-token span {
-  color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1;
 }
 
 .progression-draft-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .progression-clear-button,
 .progression-commit-button {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 31px;
+  padding: 0 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-small);
+  border-radius: 7px;
   background: var(--surface-3);
   color: var(--text-soft);
   cursor: pointer;
-  font: 800 8px/1 var(--font-mono);
+  font: 800 7px/1 var(--font-mono);
   letter-spacing: 0.07em;
   white-space: nowrap;
   transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
@@ -1211,6 +1089,234 @@ input[type="number"]:hover {
   color: var(--text-dim);
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.progression-builder-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 16px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+}
+
+.progression-chord-grid {
+  min-width: 760px;
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(96px, 1fr));
+  align-items: start;
+  gap: 7px;
+}
+
+.progression-chord-column {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(18, 22, 27, 0.9);
+  animation: column-expand-in 180ms calc(var(--column-index) * 24ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.progression-chord-column.is-root {
+  border-color: var(--accent);
+  background: rgba(255, 138, 0, 0.055);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.progression-chord-column.is-unavailable {
+  min-height: 140px;
+  opacity: 0.42;
+}
+
+.progression-column-header {
+  position: relative;
+  min-height: 51px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  gap: 3px 5px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.progression-chord-column.is-root .progression-column-header {
+  border-color: var(--accent-mid);
+  background: var(--accent-soft);
+}
+
+.progression-column-degree,
+.progression-column-roman {
+  color: var(--text-dim);
+  font: 800 6px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.progression-column-degree {
+  align-self: start;
+}
+
+.progression-column-roman {
+  justify-self: end;
+  align-self: start;
+  color: var(--accent);
+}
+
+.progression-root-note {
+  grid-column: 1 / -1;
+  align-self: end;
+  color: var(--text-soft);
+  font: 800 20px/0.95 var(--font-ui);
+  letter-spacing: -0.04em;
+}
+
+.progression-chord-column.is-root .progression-root-note {
+  color: var(--accent);
+}
+
+.progression-root-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 3px 5px;
+  border: 1px solid var(--accent-mid);
+  border-radius: 5px;
+  color: var(--accent);
+  background: rgba(255, 138, 0, 0.08);
+  font: 800 5px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+.progression-column-empty {
+  padding: 10px 5px;
+  color: var(--text-dim);
+  font: 700 6px/1.45 var(--font-mono);
+  text-align: center;
+}
+
+.progression-chord-card-list {
+  display: grid;
+  gap: 4px;
+}
+
+.progression-chord-card {
+  position: relative;
+  min-width: 0;
+  min-height: 39px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 5px 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-1);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  animation: card-expand-in 160ms calc(var(--card-index) * 12ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease, transform 170ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.progression-chord-card:hover {
+  border-color: var(--accent-mid);
+  background: var(--surface-3);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.progression-chord-card:active {
+  transform: scale(0.985);
+}
+
+.progression-chord-card.is-diatonic {
+  border-color: rgba(255, 138, 0, 0.38);
+  background: rgba(255, 138, 0, 0.05);
+}
+
+.progression-chord-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 0, 0.16);
+}
+
+.progression-card-quality {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-dim);
+  font: 800 5px/1 var(--font-mono);
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-card-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-card-meta {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-dim);
+  font: 700 5px/1 var(--font-mono);
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progression-chord-card.is-diatonic .progression-card-meta,
+.progression-chord-card.is-selected .progression-card-name {
+  color: var(--accent);
+}
+
+.progression-card-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #17110a;
+  font: 900 7px/1 var(--font-mono);
+  animation: count-expand-in 170ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+@keyframes viewer-expand-in {
+  from { opacity: 0; transform: scaleY(0.92); transform-origin: top; }
+  to { opacity: 1; transform: scaleY(1); transform-origin: top; }
+}
+
+@keyframes progression-block-in {
+  from { opacity: 0; transform: scaleX(0.9); transform-origin: left; }
+  to { opacity: 1; transform: scaleX(1); transform-origin: left; }
+}
+
+@keyframes column-expand-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes card-expand-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes viewport-expand-in {

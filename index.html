@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#0b0d10">
   <meta name="description" content="A browser-based chord progression builder with music theory tools, an editable MIDI piano roll, playback, MIDI import, and MIDI export.">
   <title>ChordLab — Chord Progression Builder</title>
+  <link rel="icon" type="image/png" href="piano.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -243,12 +247,29 @@
               <span class="eyebrow">DIATONIC CHORD MAP</span>
               <h3>BUILD FROM THE SELECTED ROOT</h3>
             </div>
-            <p>Select rounded chord cards to stage a progression. Nothing is written to the MIDI piano roll until you choose <strong>ADD TO MIDI</strong>.</p>
+            <p>Choose one chord per root column. A selection in the first column filters the remaining columns to harmonically compatible choices.</p>
           </div>
+
+          <section class="chosen-progression-viewer" aria-label="Chosen chords viewer">
+            <div class="chosen-progression-header">
+              <div>
+                <span class="eyebrow">CHOSEN CHORDS</span>
+                <h3>PROGRESSION VIEWER</h3>
+              </div>
+              <div class="progression-bars-control" role="group" aria-label="Progression viewer length">
+                <span>BARS</span>
+                <button type="button" data-progression-bars="4" aria-pressed="true">4</button>
+                <button type="button" data-progression-bars="8" aria-pressed="false">8</button>
+                <button type="button" data-progression-bars="16" aria-pressed="false">16</button>
+              </div>
+            </div>
+            <div class="progression-viewer-timeline" id="progressionViewerTimeline" aria-live="polite"></div>
+            <div class="progression-builder-footer" id="progressionBuilderFooter"></div>
+          </section>
+
           <div class="progression-builder-scroll">
             <div class="progression-chord-grid" id="progressionChordGrid" aria-live="polite"></div>
           </div>
-          <div class="progression-builder-footer" id="progressionBuilderFooter"></div>
         </div>
       </section>
 

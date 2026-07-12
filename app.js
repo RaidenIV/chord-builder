@@ -97,6 +97,8 @@
     { id: "diminished7", label: "DIMINISHED 7", quality: "diminished 7", suffix: "dim7", intervals: [0, 3, 6, 9] }
   ];
 
+  const PROGRESSION_VIEWER_COLORS = ["#d94f91", "#2fa9a0", "#7b75d8", "#b56ac7", "#3298b7", "#d06f69", "#5e9f77"];
+
   const ROW_HEIGHT = 18;
   const BEAT_WIDTH = 112;
   const MIN_PITCH = 36;
@@ -131,6 +133,7 @@
     loopEnabled: false,
     viewportMode: "progression",
     progressionDraft: [],
+    progressionBars: 4,
     nextDraftId: 1,
     undoStack: [],
     inspectorEditActive: false,
@@ -145,7 +148,7 @@
       "keySelect", "scaleSelect", "scaleNotes", "scaleBadge", "soundSelect", "voicingSelect", "insertBeatLabel",
       "chordGrid", "analysisCard", "selectToolButton", "drawToolButton", "undoButton", "deleteButton", "clearButton",
       "midiModeButton", "progressionModeButton", "editorEyebrow", "editorTitle", "midiEditorView", "progressionBuilderView",
-      "progressionChordGrid", "progressionBuilderFooter", "timelineRuler", "pianoKeyboard", "pianoRollScroll", "pianoRoll", "gridLayer", "scaleHighlightLayer",
+      "progressionChordGrid", "progressionViewerTimeline", "progressionBuilderFooter", "timelineRuler", "pianoKeyboard", "pianoRollScroll", "pianoRoll", "gridLayer", "scaleHighlightLayer",
       "chordBandLayer", "noteLayer", "insertCursor", "playhead", "emptyInspector", "noteInspector",
       "selectedNoteName", "selectedNoteMidi", "notePitchInput", "noteStartInput", "noteDurationInput",
       "noteVelocityInput", "velocityOutput", "duplicateNoteButton", "deleteNoteInspectorButton",
@@ -199,6 +202,13 @@
       renderLoopControl();
     });
 
+    document.querySelectorAll("[data-progression-bars]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.progressionBars = Number(button.dataset.progressionBars);
+        renderProgressionDraft();
+      });
+    });
+
     document.querySelectorAll("[data-step-target]").forEach((button) => {
       button.addEventListener("click", () => {
         const input = document.getElementById(button.dataset.stepTarget);
@@ -241,6 +251,7 @@
 
     elements.keySelect.addEventListener("change", () => {
       state.keyPc = Number(elements.keySelect.value);
+      syncProgressionDraftToTheory();
       renderTheory();
       renderScaleHighlights();
       renderNotes();
@@ -249,6 +260,7 @@
 
     elements.scaleSelect.addEventListener("change", () => {
       state.scaleId = elements.scaleSelect.value;
+      syncProgressionDraftToTheory();
       renderTheory();
       renderScaleHighlights();
       renderNotes();
@@ -374,6 +386,7 @@
   function renderProgressionBuilder() {
     const diatonicChords = buildDiatonicChords();
     const scale = getCurrentScale();
+    const rootSelection = getRootProgressionSelection();
     const columns = Array.from({ length: 7 }, (_, degree) => {
       const interval = scale.intervals[degree];
       if (interval === undefined) return null;
@@ -403,30 +416,38 @@
       }
 
       const { rootPc, diatonicChord } = columnData;
+      const selectedChord = state.progressionDraft.find((item) => item.degree === degree) || null;
       const cardList = document.createElement("div");
       cardList.className = "progression-chord-card-list";
+      let visibleCardCount = 0;
 
       PROGRESSION_CHORD_TYPES.forEach((type, typeIndex) => {
         const chord = buildProgressionChord(rootPc, degree, type, diatonicChord);
         const isDiatonic = Boolean(diatonicChord) && samePitchClassSet(chord.pitchClasses, diatonicChord.pitchClasses);
-        const queuedCount = state.progressionDraft.filter((item) =>
-          item.rootPc === chord.rootPc && item.quality === chord.quality && item.degree === chord.degree
-        ).length;
+        const isCompatible = degree === 0 || !rootSelection || isProgressionChordCompatible(chord, rootSelection);
+        if (!isCompatible) return;
+
+        visibleCardCount += 1;
+        const isSelected = Boolean(selectedChord) && selectedChord.typeId === type.id;
         const card = document.createElement("button");
         card.type = "button";
-        card.className = `progression-chord-card${isDiatonic ? " is-diatonic" : ""}${queuedCount ? " is-selected" : ""}`;
+        card.className = `progression-chord-card${isDiatonic ? " is-diatonic" : ""}${isSelected ? " is-selected" : ""}`;
         card.style.setProperty("--card-index", typeIndex);
-        card.setAttribute("aria-pressed", String(queuedCount > 0));
-        card.title = `Select ${chord.name} for the progression (${chord.noteNames.join(", ")})`;
+        card.setAttribute("aria-pressed", String(isSelected));
+        card.title = `${isSelected ? "Remove" : "Choose"} ${chord.name} (${chord.noteNames.join(", ")})`;
         card.innerHTML = `
           <span class="progression-card-quality">${escapeHtml(type.label)}</span>
           <span class="progression-card-name">${escapeHtml(chord.name)}</span>
           <span class="progression-card-meta">${escapeHtml(chord.roman)}${isDiatonic ? " · DIATONIC" : ""}</span>
-          ${queuedCount ? `<span class="progression-card-count" aria-label="Selected ${queuedCount} ${queuedCount === 1 ? "time" : "times"}">${queuedCount}</span>` : ""}
+          ${isSelected ? '<span class="progression-card-check" aria-hidden="true">✓</span>' : ""}
         `;
-        card.addEventListener("click", () => queueProgressionChord(chord));
+        card.addEventListener("click", () => selectProgressionChord(chord));
         cardList.appendChild(card);
       });
+
+      if (visibleCardCount === 0) {
+        cardList.innerHTML = '<div class="progression-column-empty">NO COMPATIBLE CHORDS</div>';
+      }
 
       column.innerHTML = `
         <div class="progression-column-header">
@@ -443,53 +464,133 @@
     renderProgressionDraft();
   }
 
-  function queueProgressionChord(chord) {
-    state.progressionDraft.push({
-      ...chord,
-      pitchClasses: [...chord.pitchClasses],
-      noteNames: [...chord.noteNames],
-      draftId: `draft-${state.nextDraftId++}`
-    });
+  function selectProgressionChord(chord) {
+    const existingIndex = state.progressionDraft.findIndex((item) => item.degree === chord.degree);
+    const existingChord = existingIndex >= 0 ? state.progressionDraft[existingIndex] : null;
+    const isSameSelection = Boolean(existingChord) && existingChord.typeId === chord.typeId;
+
+    if (isSameSelection) {
+      state.progressionDraft.splice(existingIndex, 1);
+    } else {
+      const nextChord = {
+        ...chord,
+        pitchClasses: [...chord.pitchClasses],
+        noteNames: [...chord.noteNames],
+        draftId: existingChord?.draftId || `draft-${state.nextDraftId++}`
+      };
+      if (existingIndex >= 0) state.progressionDraft.splice(existingIndex, 1, nextChord);
+      else state.progressionDraft.push(nextChord);
+      auditionNotes(getChordPitches(chord), 0.65);
+    }
+
+    pruneProgressionDraftToRootSelection();
     renderProgressionBuilder();
-    auditionNotes(getChordPitches(chord), 0.65);
+  }
+
+  function getRootProgressionSelection() {
+    return state.progressionDraft.find((chord) => chord.degree === 0) || null;
+  }
+
+  function getProgressionCompatibilityPool(rootChord) {
+    const pool = getScalePitchClasses();
+    rootChord.pitchClasses.forEach((pitchClass) => pool.add(pitchClass));
+    return pool;
+  }
+
+  function isProgressionChordCompatible(chord, rootChord) {
+    const pool = getProgressionCompatibilityPool(rootChord);
+    return chord.pitchClasses.every((pitchClass) => pool.has(pitchClass));
+  }
+
+  function pruneProgressionDraftToRootSelection() {
+    const rootSelection = getRootProgressionSelection();
+    if (!rootSelection) return;
+    state.progressionDraft = state.progressionDraft.filter((chord) =>
+      chord.degree === 0 || isProgressionChordCompatible(chord, rootSelection)
+    );
+  }
+
+  function syncProgressionDraftToTheory() {
+    const scale = getCurrentScale();
+    const diatonicChords = buildDiatonicChords();
+    state.progressionDraft = state.progressionDraft.flatMap((selectedChord) => {
+      const interval = scale.intervals[selectedChord.degree];
+      const type = PROGRESSION_CHORD_TYPES.find((candidate) => candidate.id === selectedChord.typeId);
+      if (interval === undefined || !type) return [];
+      const rootPc = (state.keyPc + interval) % 12;
+      return [{
+        ...buildProgressionChord(rootPc, selectedChord.degree, type, diatonicChords[selectedChord.degree] || null),
+        draftId: selectedChord.draftId
+      }];
+    });
+    pruneProgressionDraftToRootSelection();
   }
 
   function renderProgressionDraft() {
+    document.querySelectorAll("[data-progression-bars]").forEach((button) => {
+      const isActive = Number(button.dataset.progressionBars) === state.progressionBars;
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+
+    renderProgressionViewerTimeline();
+
     if (state.progressionDraft.length === 0) {
       elements.progressionBuilderFooter.innerHTML = `
-        <div class="progression-draft-summary">
-          <span class="footer-label">STAGED PROGRESSION</span>
-          <span class="empty-progression">Select chord cards to build a progression before adding it to MIDI.</span>
-        </div>
+        <span class="empty-progression">Choose one chord from any root column to begin the progression.</span>
         <button class="progression-commit-button" type="button" disabled>ADD TO MIDI</button>
       `;
       return;
     }
 
     elements.progressionBuilderFooter.innerHTML = `
-      <div class="progression-draft-summary">
-        <span class="footer-label">STAGED PROGRESSION · ${state.progressionDraft.length}</span>
-        <div class="progression-draft-list">
-          ${state.progressionDraft.map((chord, index) => `
-            <button class="progression-draft-token" type="button" data-draft-id="${escapeHtml(chord.draftId)}" title="Remove ${escapeHtml(chord.name)} from the staged progression">
-              <small>${String(index + 1).padStart(2, "0")}</small>
-              <strong>${escapeHtml(chord.name)}</strong>
-              <span aria-hidden="true">×</span>
-            </button>
-          `).join("")}
-        </div>
-      </div>
+      <span class="progression-selection-summary">${state.progressionDraft.length} ${state.progressionDraft.length === 1 ? "CHORD" : "CHORDS"} SELECTED</span>
       <div class="progression-draft-actions">
         <button class="progression-clear-button" type="button">CLEAR</button>
         <button class="progression-commit-button" type="button">ADD TO MIDI</button>
       </div>
     `;
 
-    elements.progressionBuilderFooter.querySelectorAll("[data-draft-id]").forEach((button) => {
-      button.addEventListener("click", () => removeProgressionDraftChord(button.dataset.draftId));
-    });
     elements.progressionBuilderFooter.querySelector(".progression-clear-button").addEventListener("click", clearProgressionDraft);
     elements.progressionBuilderFooter.querySelector(".progression-commit-button").addEventListener("click", commitProgressionDraft);
+  }
+
+  function renderProgressionViewerTimeline() {
+    const barCells = Array.from({ length: state.progressionBars }, (_, index) =>
+      `<span class="progression-viewer-bar"><small>${index + 1}</small></span>`
+    ).join("");
+
+    if (state.progressionDraft.length === 0) {
+      elements.progressionViewerTimeline.innerHTML = `
+        <div class="progression-viewer-bars" style="--viewer-bars: ${state.progressionBars}">${barCells}</div>
+        <div class="progression-viewer-empty">YOUR CHOSEN CHORDS WILL APPEAR HERE</div>
+      `;
+      return;
+    }
+
+    const blockWidth = 100 / state.progressionDraft.length;
+    const blocks = state.progressionDraft.map((chord, index) => {
+      const left = index * blockWidth;
+      const colorIndex = chord.degree % PROGRESSION_VIEWER_COLORS.length;
+      return `
+        <button class="progression-viewer-block" type="button" data-draft-id="${escapeHtml(chord.draftId)}"
+          style="left:${left}%;width:${blockWidth}%;--progression-block-color:${PROGRESSION_VIEWER_COLORS[colorIndex]}"
+          title="Remove ${escapeHtml(chord.name)} from the chosen progression">
+          <small>${String(index + 1).padStart(2, "0")}</small>
+          <strong>${escapeHtml(chord.name)}</strong>
+          <span>${escapeHtml(chord.roman)}</span>
+          <i aria-hidden="true">×</i>
+        </button>
+      `;
+    }).join("");
+
+    elements.progressionViewerTimeline.innerHTML = `
+      <div class="progression-viewer-bars" style="--viewer-bars: ${state.progressionBars}">${barCells}</div>
+      <div class="progression-viewer-blocks">${blocks}</div>
+    `;
+
+    elements.progressionViewerTimeline.querySelectorAll("[data-draft-id]").forEach((button) => {
+      button.addEventListener("click", () => removeProgressionDraftChord(button.dataset.draftId));
+    });
   }
 
   function removeProgressionDraftChord(draftId) {
@@ -522,6 +623,8 @@
     return {
       degree,
       rootPc,
+      typeId: type.id,
+      typeLabel: type.label,
       pitchClasses,
       roman: romanForChordType(degree, type.id),
       name: `${NOTE_NAMES[rootPc]}${type.suffix}`,
@@ -1148,6 +1251,7 @@
       notes: state.notes.map((note) => ({ ...note })),
       chordEvents: state.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] })),
       progressionDraft: state.progressionDraft.map((chord) => ({ ...chord, pitchClasses: [...chord.pitchClasses], noteNames: [...chord.noteNames] })),
+      progressionBars: state.progressionBars,
       selectedNoteIds: [...state.selectedNoteIds],
       insertBeat: state.insertBeat,
       lengthBeats: state.lengthBeats,
@@ -1173,6 +1277,7 @@
     state.notes = snapshot.notes.map((note) => ({ ...note }));
     state.chordEvents = snapshot.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] }));
     state.progressionDraft = (snapshot.progressionDraft || []).map((chord) => ({ ...chord, pitchClasses: [...chord.pitchClasses], noteNames: [...chord.noteNames] }));
+    state.progressionBars = snapshot.progressionBars || state.progressionBars;
     state.selectedNoteIds = new Set(snapshot.selectedNoteIds);
     state.insertBeat = snapshot.insertBeat;
     state.lengthBeats = snapshot.lengthBeats;
