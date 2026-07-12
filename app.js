@@ -129,7 +129,9 @@
     metronomeEnabled: false,
     metronomeSubdivision: 1,
     loopEnabled: false,
-    viewportMode: "midi",
+    viewportMode: "progression",
+    progressionDraft: [],
+    nextDraftId: 1,
     undoStack: [],
     inspectorEditActive: false,
     nextId: 1
@@ -386,12 +388,15 @@
     columns.forEach((columnData, degree) => {
       const column = document.createElement("section");
       column.className = `progression-chord-column${degree === 0 ? " is-root" : ""}${columnData ? "" : " is-unavailable"}`;
+      column.style.setProperty("--column-index", degree);
 
       if (!columnData) {
         column.innerHTML = `
-          <div class="progression-column-topline"><span>DEGREE ${String(degree + 1).padStart(2, "0")}</span></div>
-          <div class="progression-root-note">—</div>
-          <div class="progression-column-empty">This scale does not contain a seventh scale degree.</div>
+          <div class="progression-column-header">
+            <span class="progression-column-degree">${String(degree + 1).padStart(2, "0")}</span>
+            <strong class="progression-root-note">—</strong>
+          </div>
+          <div class="progression-column-empty">NOT AVAILABLE IN THIS SCALE</div>
         `;
         elements.progressionChordGrid.appendChild(column);
         return;
@@ -401,57 +406,114 @@
       const cardList = document.createElement("div");
       cardList.className = "progression-chord-card-list";
 
-      PROGRESSION_CHORD_TYPES.forEach((type) => {
+      PROGRESSION_CHORD_TYPES.forEach((type, typeIndex) => {
         const chord = buildProgressionChord(rootPc, degree, type, diatonicChord);
         const isDiatonic = Boolean(diatonicChord) && samePitchClassSet(chord.pitchClasses, diatonicChord.pitchClasses);
-        const useCount = state.chordEvents.filter((event) => event.degree === degree && event.quality === chord.quality).length;
+        const queuedCount = state.progressionDraft.filter((item) =>
+          item.rootPc === chord.rootPc && item.quality === chord.quality && item.degree === chord.degree
+        ).length;
         const card = document.createElement("button");
         card.type = "button";
-        card.className = `progression-chord-card${isDiatonic ? " is-diatonic" : ""}`;
-        card.title = `Add ${chord.name} at beat ${formatBeat(state.insertBeat)}`;
+        card.className = `progression-chord-card${isDiatonic ? " is-diatonic" : ""}${queuedCount ? " is-selected" : ""}`;
+        card.style.setProperty("--card-index", typeIndex);
+        card.setAttribute("aria-pressed", String(queuedCount > 0));
+        card.title = `Select ${chord.name} for the progression (${chord.noteNames.join(", ")})`;
         card.innerHTML = `
-          <span class="progression-card-topline">
-            <span>${escapeHtml(type.label)}</span>
-            ${isDiatonic ? '<b>DIATONIC</b>' : ""}
-          </span>
+          <span class="progression-card-quality">${escapeHtml(type.label)}</span>
           <span class="progression-card-name">${escapeHtml(chord.name)}</span>
-          <span class="progression-card-notes">${escapeHtml(chord.noteNames.join(" · "))}</span>
-          <span class="progression-card-footer">
-            <small>${escapeHtml(chord.roman)}</small>
-            <small>${useCount ? `${useCount} USED` : `ADD ${formatBeat(state.insertBeat)}`}</small>
-            <b aria-hidden="true">+</b>
-          </span>
+          <span class="progression-card-meta">${escapeHtml(chord.roman)}${isDiatonic ? " · DIATONIC" : ""}</span>
+          ${queuedCount ? `<span class="progression-card-count" aria-label="Selected ${queuedCount} ${queuedCount === 1 ? "time" : "times"}">${queuedCount}</span>` : ""}
         `;
-        card.addEventListener("click", () => insertChord(chord));
+        card.addEventListener("click", () => queueProgressionChord(chord));
         cardList.appendChild(card);
       });
 
       column.innerHTML = `
-        <div class="progression-column-topline">
-          <span>DEGREE ${String(degree + 1).padStart(2, "0")}</span>
-          ${degree === 0 ? '<span class="progression-root-badge">SELECTED ROOT</span>' : ""}
-        </div>
-        <div class="progression-root-note">${escapeHtml(NOTE_NAMES[rootPc])}</div>
-        <div class="progression-column-scale-info">
-          <span>${escapeHtml(scale.romans[degree] || romanNumeral(degree + 1))}</span>
-          <small>${escapeHtml(diatonicChord ? `${diatonicChord.name} · ${diatonicChord.function}` : "Scale degree")}</small>
+        <div class="progression-column-header">
+          <span class="progression-column-degree">${String(degree + 1).padStart(2, "0")}</span>
+          <strong class="progression-root-note">${escapeHtml(NOTE_NAMES[rootPc])}</strong>
+          <span class="progression-column-roman">${escapeHtml(scale.romans[degree] || romanNumeral(degree + 1))}</span>
+          ${degree === 0 ? '<span class="progression-root-badge">ROOT</span>' : ""}
         </div>
       `;
       column.appendChild(cardList);
       elements.progressionChordGrid.appendChild(column);
     });
 
-    const progression = state.chordEvents
-      .filter((chord) => chord.noteIds.some((id) => state.notes.some((note) => note.id === id)))
-      .sort((a, b) => a.start - b.start);
-    if (progression.length === 0) {
-      elements.progressionBuilderFooter.innerHTML = '<span class="footer-label">CURRENT PROGRESSION</span><span class="empty-progression">No chords added yet.</span>';
+    renderProgressionDraft();
+  }
+
+  function queueProgressionChord(chord) {
+    state.progressionDraft.push({
+      ...chord,
+      pitchClasses: [...chord.pitchClasses],
+      noteNames: [...chord.noteNames],
+      draftId: `draft-${state.nextDraftId++}`
+    });
+    renderProgressionBuilder();
+    auditionNotes(getChordPitches(chord), 0.65);
+  }
+
+  function renderProgressionDraft() {
+    if (state.progressionDraft.length === 0) {
+      elements.progressionBuilderFooter.innerHTML = `
+        <div class="progression-draft-summary">
+          <span class="footer-label">STAGED PROGRESSION</span>
+          <span class="empty-progression">Select chord cards to build a progression before adding it to MIDI.</span>
+        </div>
+        <button class="progression-commit-button" type="button" disabled>ADD TO MIDI</button>
+      `;
       return;
     }
+
     elements.progressionBuilderFooter.innerHTML = `
-      <span class="footer-label">CURRENT PROGRESSION</span>
-      ${progression.map((chord) => `<span class="progression-token"><strong>${escapeHtml(chord.roman)}</strong><small>${escapeHtml(chord.name)}</small></span>`).join('<span class="progression-arrow">→</span>')}
+      <div class="progression-draft-summary">
+        <span class="footer-label">STAGED PROGRESSION · ${state.progressionDraft.length}</span>
+        <div class="progression-draft-list">
+          ${state.progressionDraft.map((chord, index) => `
+            <button class="progression-draft-token" type="button" data-draft-id="${escapeHtml(chord.draftId)}" title="Remove ${escapeHtml(chord.name)} from the staged progression">
+              <small>${String(index + 1).padStart(2, "0")}</small>
+              <strong>${escapeHtml(chord.name)}</strong>
+              <span aria-hidden="true">×</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+      <div class="progression-draft-actions">
+        <button class="progression-clear-button" type="button">CLEAR</button>
+        <button class="progression-commit-button" type="button">ADD TO MIDI</button>
+      </div>
     `;
+
+    elements.progressionBuilderFooter.querySelectorAll("[data-draft-id]").forEach((button) => {
+      button.addEventListener("click", () => removeProgressionDraftChord(button.dataset.draftId));
+    });
+    elements.progressionBuilderFooter.querySelector(".progression-clear-button").addEventListener("click", clearProgressionDraft);
+    elements.progressionBuilderFooter.querySelector(".progression-commit-button").addEventListener("click", commitProgressionDraft);
+  }
+
+  function removeProgressionDraftChord(draftId) {
+    state.progressionDraft = state.progressionDraft.filter((chord) => chord.draftId !== draftId);
+    renderProgressionBuilder();
+  }
+
+  function clearProgressionDraft() {
+    state.progressionDraft = [];
+    renderProgressionBuilder();
+  }
+
+  function commitProgressionDraft() {
+    if (state.progressionDraft.length === 0) return;
+    const queuedChords = state.progressionDraft.map((chord) => ({
+      ...chord,
+      pitchClasses: [...chord.pitchClasses],
+      noteNames: [...chord.noteNames]
+    }));
+    pushUndoState();
+    queuedChords.forEach((chord) => insertChord(chord, { recordUndo: false, render: false, audition: false }));
+    state.progressionDraft = [];
+    renderAll();
+    showToast("PROGRESSION ADDED", `${queuedChords.length} ${queuedChords.length === 1 ? "chord was" : "chords were"} added to the MIDI sequence.`);
   }
 
   function buildProgressionChord(rootPc, degree, type, diatonicChord) {
@@ -586,8 +648,9 @@
     return map[quality] ?? "";
   }
 
-  function insertChord(chord) {
-    pushUndoState();
+  function insertChord(chord, options = {}) {
+    const { recordUndo = true, render = true, audition = true } = options;
+    if (recordUndo) pushUndoState();
     const duration = Math.min(1, state.lengthBeats - state.insertBeat);
     if (duration < QUANTIZE) {
       state.insertBeat = 0;
@@ -595,25 +658,7 @@
 
     const start = state.insertBeat;
     const actualDuration = Math.min(1, state.lengthBeats - start);
-    const baseRoot = findPitchAtOrAbove(chord.rootPc, state.sound === "bass" ? 36 : 48);
-    let chordPitches = [];
-    chord.pitchClasses.forEach((pc, index) => {
-      let pitch = findPitchAtOrAbove(pc, baseRoot);
-      while (index > 0 && pitch <= chordPitches[index - 1]) pitch += 12;
-      chordPitches.push(pitch);
-    });
-
-    if (state.voicing === "open" && chordPitches.length >= 3) {
-      chordPitches[1] += 12;
-      chordPitches.sort((a, b) => a - b);
-    }
-
-    while (Math.max(...chordPitches) > MAX_PITCH) {
-      chordPitches = chordPitches.map((pitch) => pitch - 12);
-    }
-    while (Math.min(...chordPitches) < MIN_PITCH) {
-      chordPitches = chordPitches.map((pitch) => pitch + 12);
-    }
+    const chordPitches = getChordPitches(chord);
 
     const chordId = `chord-${state.nextId++}`;
     const noteIds = [];
@@ -643,8 +688,31 @@
 
     state.selectedNoteIds = new Set(noteIds);
     state.insertBeat = quantize(Math.min(state.lengthBeats - QUANTIZE, start + actualDuration));
-    renderAll();
-    auditionNotes(chordPitches, actualDuration * 0.85);
+    if (render) renderAll();
+    if (audition) auditionNotes(chordPitches, actualDuration * 0.85);
+  }
+
+  function getChordPitches(chord) {
+    const baseRoot = findPitchAtOrAbove(chord.rootPc, state.sound === "bass" ? 36 : 48);
+    let chordPitches = [];
+    chord.pitchClasses.forEach((pc, index) => {
+      let pitch = findPitchAtOrAbove(pc, baseRoot);
+      while (index > 0 && pitch <= chordPitches[index - 1]) pitch += 12;
+      chordPitches.push(pitch);
+    });
+
+    if (state.voicing === "open" && chordPitches.length >= 3) {
+      chordPitches[1] += 12;
+      chordPitches.sort((a, b) => a - b);
+    }
+
+    while (Math.max(...chordPitches) > MAX_PITCH) {
+      chordPitches = chordPitches.map((pitch) => pitch - 12);
+    }
+    while (Math.min(...chordPitches) < MIN_PITCH) {
+      chordPitches = chordPitches.map((pitch) => pitch + 12);
+    }
+    return chordPitches;
   }
 
   function findPitchAtOrAbove(pitchClass, minimum) {
@@ -1079,6 +1147,7 @@
     return {
       notes: state.notes.map((note) => ({ ...note })),
       chordEvents: state.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] })),
+      progressionDraft: state.progressionDraft.map((chord) => ({ ...chord, pitchClasses: [...chord.pitchClasses], noteNames: [...chord.noteNames] })),
       selectedNoteIds: [...state.selectedNoteIds],
       insertBeat: state.insertBeat,
       lengthBeats: state.lengthBeats,
@@ -1103,6 +1172,7 @@
     stopPlayback();
     state.notes = snapshot.notes.map((note) => ({ ...note }));
     state.chordEvents = snapshot.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] }));
+    state.progressionDraft = (snapshot.progressionDraft || []).map((chord) => ({ ...chord, pitchClasses: [...chord.pitchClasses], noteNames: [...chord.noteNames] }));
     state.selectedNoteIds = new Set(snapshot.selectedNoteIds);
     state.insertBeat = snapshot.insertBeat;
     state.lengthBeats = snapshot.lengthBeats;

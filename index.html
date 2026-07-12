@@ -174,13 +174,13 @@
       <section class="editor-panel panel">
         <div class="editor-header">
           <div class="editor-heading">
-            <span class="eyebrow" id="editorEyebrow">MIDI EDITOR</span>
-            <h2 id="editorTitle">PIANO ROLL</h2>
+            <span class="eyebrow" id="editorEyebrow">HARMONIC WORKSPACE</span>
+            <h2 id="editorTitle">PROGRESSION BUILDER</h2>
           </div>
 
           <div class="viewport-mode-switch" role="group" aria-label="Viewport mode">
-            <button id="midiModeButton" type="button" aria-pressed="true">MIDI</button>
-            <button id="progressionModeButton" type="button" aria-pressed="false">PROGRESSION BUILDER</button>
+            <button id="midiModeButton" type="button" aria-pressed="false">MIDI</button>
+            <button id="progressionModeButton" type="button" aria-pressed="true">PROGRESSION BUILDER</button>
           </div>
 
           <div class="editor-tools">
@@ -207,7 +207,7 @@
           </div>
         </div>
 
-        <div class="editor-view midi-editor-view" id="midiEditorView">
+        <div class="editor-view midi-editor-view" id="midiEditorView" hidden>
           <div class="timeline-strip">
             <div class="timeline-label">BEAT</div>
             <div class="timeline-ruler" id="timelineRuler"></div>
@@ -237,13 +237,13 @@
           </div>
         </div>
 
-        <div class="editor-view progression-builder-view" id="progressionBuilderView" hidden>
+        <div class="editor-view progression-builder-view" id="progressionBuilderView">
           <div class="progression-builder-intro">
             <div>
               <span class="eyebrow">DIATONIC CHORD MAP</span>
               <h3>BUILD FROM THE SELECTED ROOT</h3>
             </div>
-            <p>Choose a chord card from any column to add that chord quality at the current insert position. Each column uses its scale-degree root note, and the first column is the selected root.</p>
+            <p>Select rounded chord cards to stage a progression. Nothing is written to the MIDI piano roll until you choose <strong>ADD TO MIDI</strong>.</p>
           </div>
           <div class="progression-builder-scroll">
             <div class="progression-chord-grid" id="progressionChordGrid" aria-live="polite"></div>
