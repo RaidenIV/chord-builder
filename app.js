@@ -110,6 +110,11 @@
     audioContext: null,
     activeAudioNodes: [],
     drag: null,
+    metronomeEnabled: false,
+    metronomeSubdivision: 1,
+    viewportMode: "midi",
+    undoStack: [],
+    inspectorEditActive: false,
     nextId: 1
   };
 
@@ -117,10 +122,11 @@
 
   function cacheElements() {
     [
-      "playButton", "stopButton", "tempoInput", "lengthSelect", "importButton", "exportButton", "midiFileInput",
+      "playButton", "stopButton", "tempoInput", "metronomeToggle", "metronomeDivision", "lengthSelect", "importButton", "exportButton", "midiFileInput",
       "keySelect", "scaleSelect", "scaleNotes", "scaleBadge", "soundSelect", "voicingSelect", "insertBeatLabel",
-      "chordGrid", "analysisCard", "selectToolButton", "drawToolButton", "deleteButton", "clearButton",
-      "timelineRuler", "pianoKeyboard", "pianoRollScroll", "pianoRoll", "gridLayer", "scaleHighlightLayer",
+      "chordGrid", "analysisCard", "selectToolButton", "drawToolButton", "undoButton", "deleteButton", "clearButton",
+      "midiModeButton", "progressionModeButton", "editorEyebrow", "editorTitle", "midiEditorView", "progressionBuilderView",
+      "progressionChordGrid", "progressionBuilderFooter", "timelineRuler", "pianoKeyboard", "pianoRollScroll", "pianoRoll", "gridLayer", "scaleHighlightLayer",
       "chordBandLayer", "noteLayer", "insertCursor", "playhead", "emptyInspector", "noteInspector",
       "selectedNoteName", "selectedNoteMidi", "notePitchInput", "noteStartInput", "noteDurationInput",
       "noteVelocityInput", "velocityOutput", "duplicateNoteButton", "deleteNoteInspectorButton",
@@ -157,6 +163,18 @@
   function bindEvents() {
     elements.playButton.addEventListener("click", togglePlayback);
     elements.stopButton.addEventListener("click", stopPlayback);
+    elements.metronomeToggle.addEventListener("click", () => {
+      state.metronomeEnabled = !state.metronomeEnabled;
+      renderMetronomeControl();
+      if (state.isPlaying) {
+        if (!state.metronomeEnabled && state.notes.length === 0) stopPlayback();
+        else restartPlaybackAtCurrentPosition();
+      }
+    });
+    elements.metronomeDivision.addEventListener("change", () => {
+      state.metronomeSubdivision = Number(elements.metronomeDivision.value) === 0.5 ? 0.5 : 1;
+      if (state.isPlaying) restartPlaybackAtCurrentPosition();
+    });
 
     document.querySelectorAll("[data-step-target]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -184,6 +202,7 @@
           return;
         }
       }
+      pushUndoState();
       state.lengthBeats = newLength;
       state.notes = state.notes
         .filter((note) => note.start < newLength)
@@ -221,10 +240,14 @@
     elements.voicingSelect.addEventListener("change", () => {
       state.voicing = elements.voicingSelect.value;
       renderChordPalette();
+      renderProgressionBuilder();
     });
 
     elements.selectToolButton.addEventListener("click", () => setTool("select"));
     elements.drawToolButton.addEventListener("click", () => setTool("draw"));
+    elements.undoButton.addEventListener("click", undoLastAction);
+    elements.midiModeButton.addEventListener("click", () => setViewportMode("midi"));
+    elements.progressionModeButton.addEventListener("click", () => setViewportMode("progression"));
     elements.deleteButton.addEventListener("click", deleteSelectedNotes);
     elements.clearButton.addEventListener("click", clearSequence);
 
@@ -238,13 +261,25 @@
     elements.pianoRoll.addEventListener("contextmenu", (event) => event.preventDefault());
     elements.pianoRollScroll.addEventListener("scroll", syncKeyboardScroll);
 
-    elements.notePitchInput.addEventListener("change", updateSelectedNoteFromInspector);
-    elements.noteStartInput.addEventListener("change", updateSelectedNoteFromInspector);
-    elements.noteDurationInput.addEventListener("change", updateSelectedNoteFromInspector);
+    [elements.notePitchInput, elements.noteStartInput, elements.noteDurationInput].forEach((input) => {
+      input.addEventListener("change", () => {
+        pushUndoState();
+        updateSelectedNoteFromInspector();
+      });
+    });
+    const beginVelocityEdit = () => {
+      if (state.inspectorEditActive) return;
+      pushUndoState();
+      state.inspectorEditActive = true;
+    };
+    elements.noteVelocityInput.addEventListener("pointerdown", beginVelocityEdit);
+    elements.noteVelocityInput.addEventListener("keydown", beginVelocityEdit);
     elements.noteVelocityInput.addEventListener("input", () => {
       elements.velocityOutput.value = elements.noteVelocityInput.value;
       updateSelectedNoteFromInspector();
     });
+    elements.noteVelocityInput.addEventListener("change", () => { state.inspectorEditActive = false; });
+    elements.noteVelocityInput.addEventListener("blur", () => { state.inspectorEditActive = false; });
     elements.duplicateNoteButton.addEventListener("click", duplicateSelectedNote);
     elements.deleteNoteInspectorButton.addEventListener("click", deleteSelectedNotes);
 
@@ -267,6 +302,9 @@
   function renderAll() {
     applyCssMetrics();
     renderTheory();
+    renderViewportMode();
+    renderMetronomeControl();
+    renderUndoState();
     renderTimeline();
     renderKeyboard();
     renderScaleHighlights();
@@ -284,6 +322,7 @@
     elements.scaleNotes.textContent = notes.join(" · ");
     elements.scaleBadge.textContent = `${NOTE_NAMES[state.keyPc]} ${scale.shortLabel}`;
     renderChordPalette();
+    renderProgressionBuilder();
   }
 
   function renderChordPalette() {
@@ -306,6 +345,93 @@
       button.addEventListener("click", () => insertChord(chord));
       elements.chordGrid.appendChild(button);
     });
+  }
+
+  function renderProgressionBuilder() {
+    const chords = buildDiatonicChords();
+    const columns = Array.from({ length: 7 }, (_, degree) => chords[degree] || null);
+    elements.progressionChordGrid.innerHTML = "";
+
+    columns.forEach((chord, degree) => {
+      const column = document.createElement("button");
+      column.type = "button";
+      column.className = `progression-chord-column${degree === 0 ? " is-root" : ""}${chord ? "" : " is-unavailable"}`;
+      if (!chord) {
+        column.disabled = true;
+        column.innerHTML = `
+          <div class="progression-column-topline"><span>DEGREE ${String(degree + 1).padStart(2, "0")}</span></div>
+          <div class="progression-root-note">—</div>
+          <div class="progression-column-body"><strong>UNAVAILABLE</strong><span class="progression-column-notes">This scale does not contain a seventh diatonic degree.</span></div>
+          <div class="progression-column-action"><span>NO CHORD</span></div>
+        `;
+        elements.progressionChordGrid.appendChild(column);
+        return;
+      }
+
+      const useCount = state.chordEvents.filter((event) => event.degree === chord.degree).length;
+      column.title = `Add ${chord.name} at beat ${formatBeat(state.insertBeat)}`;
+      if (degree === 0) column.setAttribute("aria-current", "true");
+      column.innerHTML = `
+        <div class="progression-column-topline">
+          <span>DEGREE ${String(degree + 1).padStart(2, "0")}</span>
+          ${degree === 0 ? '<span class="progression-root-badge">SELECTED ROOT</span>' : ""}
+        </div>
+        <div class="progression-root-note">${escapeHtml(NOTE_NAMES[chord.rootPc])}</div>
+        <div class="progression-column-body">
+          <span class="progression-column-roman">${escapeHtml(chord.roman)}</span>
+          <strong>${escapeHtml(chord.name)}</strong>
+          <span class="progression-column-notes">${escapeHtml(chord.noteNames.join(" · "))}</span>
+          <dl class="progression-column-meta">
+            <div><dt>FUNCTION</dt><dd>${escapeHtml(chord.function)}</dd></div>
+            <div><dt>QUALITY</dt><dd>${escapeHtml(chord.quality.toUpperCase())}</dd></div>
+            <div><dt>USED</dt><dd>${useCount} TIME${useCount === 1 ? "" : "S"}</dd></div>
+          </dl>
+        </div>
+        <div class="progression-column-action"><span>ADD AT ${escapeHtml(formatBeat(state.insertBeat))}</span><b>+</b></div>
+      `;
+      column.addEventListener("click", () => insertChord(chord));
+      elements.progressionChordGrid.appendChild(column);
+    });
+
+    const progression = state.chordEvents
+      .filter((chord) => chord.noteIds.some((id) => state.notes.some((note) => note.id === id)))
+      .sort((a, b) => a.start - b.start);
+    if (progression.length === 0) {
+      elements.progressionBuilderFooter.innerHTML = '<span class="footer-label">CURRENT PROGRESSION</span><span class="empty-progression">No chords added yet.</span>';
+      return;
+    }
+    elements.progressionBuilderFooter.innerHTML = `
+      <span class="footer-label">CURRENT PROGRESSION</span>
+      ${progression.map((chord) => `<span class="progression-token"><strong>${escapeHtml(chord.roman)}</strong><small>${escapeHtml(chord.name)}</small></span>`).join('<span class="progression-arrow">→</span>')}
+    `;
+  }
+
+  function setViewportMode(mode) {
+    state.viewportMode = mode === "progression" ? "progression" : "midi";
+    renderViewportMode();
+    if (state.viewportMode === "midi") {
+      requestAnimationFrame(() => {
+        applyCssMetrics();
+        renderTimeline();
+        syncKeyboardScroll();
+      });
+    }
+  }
+
+  function renderViewportMode() {
+    const midiMode = state.viewportMode === "midi";
+    elements.midiModeButton.setAttribute("aria-pressed", String(midiMode));
+    elements.progressionModeButton.setAttribute("aria-pressed", String(!midiMode));
+    elements.midiEditorView.hidden = !midiMode;
+    elements.progressionBuilderView.hidden = midiMode;
+    elements.editorEyebrow.textContent = midiMode ? "MIDI EDITOR" : "HARMONIC WORKSPACE";
+    elements.editorTitle.textContent = midiMode ? "PIANO ROLL" : "PROGRESSION BUILDER";
+  }
+
+  function renderMetronomeControl() {
+    elements.metronomeToggle.setAttribute("aria-pressed", String(state.metronomeEnabled));
+    elements.metronomeToggle.querySelector("span").textContent = state.metronomeEnabled ? "ON" : "OFF";
+    elements.metronomeDivision.value = String(state.metronomeSubdivision);
   }
 
   function buildDiatonicChords() {
@@ -364,6 +490,7 @@
   }
 
   function insertChord(chord) {
+    pushUndoState();
     const duration = Math.min(1, state.lengthBeats - state.insertBeat);
     if (duration < QUANTIZE) {
       state.insertBeat = 0;
@@ -640,6 +767,7 @@
     state.insertBeat = clamp(quantize(point.beat), 0, state.lengthBeats - QUANTIZE);
     if (!event.shiftKey) state.selectedNoteIds.clear();
     renderInsertCursor();
+    renderProgressionBuilder();
     renderNotes();
     renderInspector();
   }
@@ -704,7 +832,10 @@
     if (!state.drag || event.pointerId !== state.drag.pointerId) return;
     const deltaX = event.clientX - state.drag.originX;
     const deltaY = event.clientY - state.drag.originY;
-    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) state.drag.didMove = true;
+    if ((Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) && !state.drag.didMove) {
+      pushUndoState();
+      state.drag.didMove = true;
+    }
 
     if (state.drag.type === "resize") {
       const beatDelta = quantize(deltaX / state.beatWidth);
@@ -770,6 +901,7 @@
   }
 
   function addNoteAt(pitch, beat, duration) {
+    pushUndoState();
     const start = clamp(quantize(beat), 0, state.lengthBeats - QUANTIZE);
     const safeDuration = clamp(quantize(duration), QUANTIZE, state.lengthBeats - start);
     const note = createNote({ pitch, start, duration: safeDuration, velocity: DEFAULT_VELOCITY });
@@ -806,6 +938,7 @@
   function duplicateSelectedNote() {
     const selectedNotes = getSelectedNotes();
     if (selectedNotes.length !== 1) return;
+    pushUndoState();
     const source = selectedNotes[0];
     const newStart = source.start + source.duration <= state.lengthBeats - QUANTIZE
       ? source.start + source.duration
@@ -823,6 +956,7 @@
 
   function deleteSelectedNotes() {
     if (state.selectedNoteIds.size === 0) return;
+    pushUndoState();
     const ids = new Set(state.selectedNoteIds);
     state.notes = state.notes.filter((note) => !ids.has(note.id));
     state.chordEvents = state.chordEvents
@@ -835,6 +969,7 @@
   function clearSequence() {
     if (state.notes.length === 0) return;
     if (!window.confirm("Clear every note and chord from the sequence?")) return;
+    pushUndoState();
     stopPlayback();
     state.notes = [];
     state.chordEvents = [];
@@ -843,7 +978,53 @@
     renderAll();
   }
 
+  function snapshotEditorState() {
+    return {
+      notes: state.notes.map((note) => ({ ...note })),
+      chordEvents: state.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] })),
+      selectedNoteIds: [...state.selectedNoteIds],
+      insertBeat: state.insertBeat,
+      lengthBeats: state.lengthBeats,
+      tempo: state.tempo,
+      nextId: state.nextId
+    };
+  }
+
+  function pushUndoState(snapshot = snapshotEditorState()) {
+    state.undoStack.push(snapshot);
+    if (state.undoStack.length > 50) state.undoStack.shift();
+    renderUndoState();
+  }
+
+  function renderUndoState() {
+    elements.undoButton.disabled = state.undoStack.length === 0;
+  }
+
+  function undoLastAction() {
+    const snapshot = state.undoStack.pop();
+    if (!snapshot) return;
+    stopPlayback();
+    state.notes = snapshot.notes.map((note) => ({ ...note }));
+    state.chordEvents = snapshot.chordEvents.map((chord) => ({ ...chord, noteIds: [...chord.noteIds] }));
+    state.selectedNoteIds = new Set(snapshot.selectedNoteIds);
+    state.insertBeat = snapshot.insertBeat;
+    state.lengthBeats = snapshot.lengthBeats;
+    state.tempo = snapshot.tempo;
+    state.nextId = snapshot.nextId;
+    elements.lengthSelect.value = String(state.lengthBeats);
+    elements.tempoInput.value = String(state.tempo);
+    state.inspectorEditActive = false;
+    renderAll();
+    showToast("EDIT UNDONE", "The previous sequence edit was restored.");
+  }
+
   function handleKeyboardShortcuts(event) {
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      undoLastAction();
+      return;
+    }
+
     const tag = event.target.tagName;
     const isEditingField = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
     if (isEditingField) return;
@@ -875,8 +1056,8 @@
   }
 
   function startPlayback(fromBeat = 0) {
-    if (state.notes.length === 0) {
-      showToast("SEQUENCE EMPTY", "Add a chord or draw a note before starting playback.", "error");
+    if (state.notes.length === 0 && !state.metronomeEnabled) {
+      showToast("SEQUENCE EMPTY", "Add a chord or draw a note, or enable the metronome before starting playback.", "error");
       return;
     }
 
@@ -888,6 +1069,8 @@
     state.playFromBeat = clamp(fromBeat, 0, state.lengthBeats - QUANTIZE);
     state.playStartedAt = ctx.currentTime;
     const secondsPerBeat = 60 / state.tempo;
+
+    if (state.metronomeEnabled) scheduleMetronome(ctx, state.playFromBeat);
 
     state.notes.forEach((note) => {
       const noteEnd = note.start + note.duration;
@@ -1027,6 +1210,35 @@
     }, Math.max(0, (endTime - ctx.currentTime) * 1000 + 100));
   }
 
+  function scheduleMetronome(ctx, fromBeat) {
+    const secondsPerBeat = 60 / state.tempo;
+    const step = state.metronomeSubdivision;
+    let clickBeat = Math.ceil((fromBeat - 0.0001) / step) * step;
+    while (clickBeat < state.lengthBeats) {
+      const offsetSeconds = (clickBeat - fromBeat) * secondsPerBeat;
+      const isDownbeat = Math.abs(clickBeat % 4) < 0.0001;
+      const isOffbeat = Math.abs(clickBeat % 1) > 0.0001;
+      scheduleMetronomeClick(ctx, ctx.currentTime + Math.max(0, offsetSeconds), isDownbeat, isOffbeat);
+      clickBeat += step;
+    }
+  }
+
+  function scheduleMetronomeClick(ctx, startTime, isDownbeat, isOffbeat) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const endTime = startTime + (isDownbeat ? 0.055 : 0.04);
+    osc.type = "square";
+    osc.frequency.setValueAtTime(isDownbeat ? 1500 : isOffbeat ? 760 : 1050, startTime);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(isDownbeat ? 0.18 : isOffbeat ? 0.055 : 0.1, startTime + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(endTime + 0.01);
+    state.activeAudioNodes.push({ nodes: [osc, gain], endTime });
+  }
+
   function getSoundPreset(sound) {
     const presets = {
       pad: {
@@ -1094,6 +1306,7 @@
       const imported = parseMidiFile(buffer);
       if (imported.notes.length === 0) throw new Error("No note events were found in this MIDI file.");
 
+      pushUndoState();
       stopPlayback();
       const maxEnd = Math.max(...imported.notes.map((note) => note.start + note.duration));
       state.lengthBeats = maxEnd <= 4 ? 4 : maxEnd <= 8 ? 8 : 16;

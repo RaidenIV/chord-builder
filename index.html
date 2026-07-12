@@ -37,6 +37,19 @@
             <button type="button" data-step-target="tempoInput" data-step="1" aria-label="Increase tempo">+</button>
           </div>
         </div>
+        <div class="metronome-control control-group">
+          <label for="metronomeToggle">METRONOME</label>
+          <div class="metronome-options">
+            <button class="metronome-toggle" id="metronomeToggle" type="button" aria-pressed="false" title="Toggle metronome">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.8 3h4.4l4.1 18H5.7zm1.6 2L8.2 19h7.6L12.6 5zM11 14h2v3h-2z"/></svg>
+              <span>OFF</span>
+            </button>
+            <select id="metronomeDivision" aria-label="Metronome subdivision" title="Metronome subdivision">
+              <option value="1" selected>1/4</option>
+              <option value="0.5">1/8</option>
+            </select>
+          </div>
+        </div>
         <div class="length-control control-group">
           <label for="lengthSelect">SEQUENCE</label>
           <select id="lengthSelect">
@@ -153,10 +166,16 @@
 
       <section class="editor-panel panel">
         <div class="editor-header">
-          <div>
-            <span class="eyebrow">MIDI EDITOR</span>
-            <h2>PIANO ROLL</h2>
+          <div class="editor-heading">
+            <span class="eyebrow" id="editorEyebrow">MIDI EDITOR</span>
+            <h2 id="editorTitle">PIANO ROLL</h2>
           </div>
+
+          <div class="viewport-mode-switch" role="group" aria-label="Viewport mode">
+            <button id="midiModeButton" type="button" aria-pressed="true">MIDI</button>
+            <button id="progressionModeButton" type="button" aria-pressed="false">PROGRESSION BUILDER</button>
+          </div>
+
           <div class="editor-tools">
             <button class="tool-button" id="selectToolButton" type="button" aria-pressed="true" title="Select and move notes">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6.1 1.7L10 19z"/></svg>
@@ -165,6 +184,10 @@
             <button class="tool-button" id="drawToolButton" type="button" aria-pressed="false" title="Draw notes">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z"/></svg>
               DRAW
+            </button>
+            <button class="tool-button" id="undoButton" type="button" disabled title="Undo last edit (Ctrl+Z)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 6H16a5 5 0 010 10h-3v-2h3a3 3 0 000-6H7.5l3 3L9 12.5 3.5 7 9 1.5 10.5 3z"/></svg>
+              UNDO
             </button>
             <button class="tool-button" id="deleteButton" type="button" disabled title="Delete selected notes (Delete)">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6zm3.46-7.12l1.41-1.41L12 11.59l1.12-1.12 1.41 1.41L13.41 13l1.12 1.12-1.41 1.41L12 14.41l-1.12 1.12-1.41-1.41L10.59 13zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"/></svg>
@@ -177,32 +200,48 @@
           </div>
         </div>
 
-        <div class="timeline-strip">
-          <div class="timeline-label">BEAT</div>
-          <div class="timeline-ruler" id="timelineRuler"></div>
-        </div>
+        <div class="editor-view midi-editor-view" id="midiEditorView">
+          <div class="timeline-strip">
+            <div class="timeline-label">BEAT</div>
+            <div class="timeline-ruler" id="timelineRuler"></div>
+          </div>
 
-        <div class="piano-roll-wrap" id="pianoRollWrap">
-          <div class="piano-keyboard" id="pianoKeyboard" aria-hidden="true"></div>
-          <div class="piano-roll-scroll" id="pianoRollScroll">
-            <div class="piano-roll" id="pianoRoll" role="application" aria-label="Editable MIDI piano roll. Double click to add a note, drag notes to move, and drag the right edge to resize.">
-              <div class="grid-layer" id="gridLayer"></div>
-              <div class="scale-highlight-layer" id="scaleHighlightLayer"></div>
-              <div class="chord-band-layer" id="chordBandLayer"></div>
-              <div class="note-layer" id="noteLayer"></div>
-              <div class="insert-cursor" id="insertCursor" aria-hidden="true"></div>
-              <div class="playhead" id="playhead" aria-hidden="true"></div>
+          <div class="piano-roll-wrap" id="pianoRollWrap">
+            <div class="piano-keyboard" id="pianoKeyboard" aria-hidden="true"></div>
+            <div class="piano-roll-scroll" id="pianoRollScroll">
+              <div class="piano-roll" id="pianoRoll" role="application" aria-label="Editable MIDI piano roll. Double click to add a note, drag notes to move, and drag the right edge to resize.">
+                <div class="grid-layer" id="gridLayer"></div>
+                <div class="scale-highlight-layer" id="scaleHighlightLayer"></div>
+                <div class="chord-band-layer" id="chordBandLayer"></div>
+                <div class="note-layer" id="noteLayer"></div>
+                <div class="insert-cursor" id="insertCursor" aria-hidden="true"></div>
+                <div class="playhead" id="playhead" aria-hidden="true"></div>
+              </div>
             </div>
           </div>
+
+          <div class="editor-footer">
+            <div class="legend">
+              <span><i class="legend-swatch scale"></i> IN SCALE</span>
+              <span><i class="legend-swatch chord"></i> CHORD NOTE</span>
+              <span><i class="legend-line"></i> INSERT CURSOR</span>
+            </div>
+            <div class="editor-hint">DOUBLE-CLICK TO ADD · DRAG TO MOVE · DRAG RIGHT EDGE TO RESIZE · DELETE TO REMOVE</div>
+          </div>
         </div>
 
-        <div class="editor-footer">
-          <div class="legend">
-            <span><i class="legend-swatch scale"></i> IN SCALE</span>
-            <span><i class="legend-swatch chord"></i> CHORD NOTE</span>
-            <span><i class="legend-line"></i> INSERT CURSOR</span>
+        <div class="editor-view progression-builder-view" id="progressionBuilderView" hidden>
+          <div class="progression-builder-intro">
+            <div>
+              <span class="eyebrow">DIATONIC CHORD MAP</span>
+              <h3>BUILD FROM THE SELECTED ROOT</h3>
+            </div>
+            <p>Choose any column to add that scale-degree chord at the current insert position. The first column is the selected root chord.</p>
           </div>
-          <div class="editor-hint">DOUBLE-CLICK TO ADD · DRAG TO MOVE · DRAG RIGHT EDGE TO RESIZE · DELETE TO REMOVE</div>
+          <div class="progression-builder-scroll">
+            <div class="progression-chord-grid" id="progressionChordGrid" aria-live="polite"></div>
+          </div>
+          <div class="progression-builder-footer" id="progressionBuilderFooter"></div>
         </div>
       </section>
 
@@ -282,6 +321,7 @@
             <li><kbd>D</kbd><span>Switch to the draw tool.</span></li>
             <li><kbd>V</kbd><span>Switch to the select tool.</span></li>
             <li><kbd>DEL</kbd><span>Delete the selected note.</span></li>
+            <li><kbd>CTRL+Z</kbd><span>Undo the last sequence edit.</span></li>
           </ul>
         </section>
       </aside>

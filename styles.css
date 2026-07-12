@@ -303,6 +303,53 @@ input[type="number"]:hover {
   border-color: var(--border-strong);
 }
 
+.metronome-options {
+  height: 38px;
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.metronome-toggle {
+  min-width: 65px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: 800 8px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.metronome-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.metronome-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+.metronome-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.metronome-options select {
+  width: 60px;
+  height: 38px;
+  padding-left: 9px;
+  padding-right: 23px;
+  background-position: calc(100% - 11px) 16px, calc(100% - 7px) 16px;
+}
+
 .length-control select {
   width: 118px;
 }
@@ -644,22 +691,59 @@ input[type="number"]:hover {
 
 .editor-panel {
   display: grid;
-  grid-template-rows: 67px 33px minmax(0, 1fr) 40px;
+  grid-template-rows: 67px minmax(0, 1fr);
   overflow: hidden;
 }
 
 .editor-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(170px, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   padding: 0 15px;
   border-bottom: 1px solid var(--border);
 }
 
+.editor-heading {
+  min-width: 106px;
+}
+
+.viewport-mode-switch {
+  justify-self: center;
+  height: 31px;
+  display: inline-flex;
+  align-items: stretch;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.viewport-mode-switch button {
+  border: 0;
+  border-radius: 2px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: 800 8px/1 var(--font-mono);
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.viewport-mode-switch button:hover {
+  color: var(--text-soft);
+}
+
+.viewport-mode-switch button[aria-pressed="true"] {
+  background: var(--surface-4);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-mid);
+}
+
 .editor-tools {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 
 .tool-button {
@@ -667,8 +751,8 @@ input[type="number"]:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 9px;
+  gap: 5px;
+  padding: 0 7px;
   border-radius: 3px;
   color: var(--text-dim);
   font: 800 8px/1 var(--font-mono);
@@ -689,6 +773,227 @@ input[type="number"]:hover {
 .tool-button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.editor-view {
+  min-width: 0;
+  min-height: 0;
+}
+
+.midi-editor-view {
+  display: grid;
+  grid-template-rows: 33px minmax(0, 1fr) 40px;
+  overflow: hidden;
+}
+
+.progression-builder-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    #0d1014;
+  background-size: 24px 24px;
+}
+
+.progression-builder-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.progression-builder-intro h3 {
+  margin: 7px 0 0;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.09em;
+}
+
+.progression-builder-intro p {
+  max-width: 470px;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.progression-builder-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+}
+
+.progression-chord-grid {
+  min-width: 910px;
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.progression-chord-column {
+  min-height: 310px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: rgba(18, 22, 27, 0.94);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.progression-chord-column:hover {
+  border-color: var(--accent);
+  background: rgba(255, 138, 0, 0.07);
+  transform: translateY(-2px);
+}
+
+.progression-chord-column.is-root {
+  border-color: var(--accent);
+  background: rgba(255, 138, 0, 0.08);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.progression-chord-column.is-unavailable {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.progression-column-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  color: var(--text-dim);
+  font: 700 8px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.progression-root-badge {
+  padding: 4px 5px;
+  border: 1px solid var(--accent-mid);
+  color: var(--accent);
+  font-size: 7px;
+}
+
+.progression-root-note {
+  color: var(--accent);
+  font: 800 40px/0.95 var(--font-mono);
+  letter-spacing: -0.08em;
+}
+
+.progression-chord-column:not(.is-root) .progression-root-note {
+  color: var(--text-soft);
+}
+
+.progression-column-body {
+  align-self: start;
+  display: grid;
+  gap: 9px;
+}
+
+.progression-column-roman {
+  color: var(--text-dim);
+  font: 800 12px/1 var(--font-mono);
+}
+
+.progression-column-body strong {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.progression-column-notes {
+  color: var(--text-soft);
+  font: 700 8px/1.5 var(--font-mono);
+}
+
+.progression-column-meta {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.progression-column-meta div {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.progression-column-meta dt,
+.progression-column-meta dd {
+  margin: 0;
+}
+
+.progression-column-meta dt {
+  color: var(--text-dim);
+  font: 700 7px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.progression-column-meta dd {
+  color: var(--text-soft);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.progression-column-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font: 800 8px/1 var(--font-mono);
+  letter-spacing: 0.07em;
+}
+
+.progression-column-action b {
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.progression-builder-footer {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: auto hidden;
+}
+
+.progression-builder-footer .footer-label {
+  flex: 0 0 auto;
+  margin-right: 5px;
+  color: var(--text-dim);
+  font: 700 8px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.progression-builder-footer .progression-token {
+  flex: 0 0 auto;
+}
+
+.progression-builder-footer .empty-progression {
+  color: var(--text-dim);
+  font-size: 9px;
 }
 
 .timeline-strip {
